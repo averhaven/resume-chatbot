@@ -43,10 +43,13 @@ The server will start on `http://localhost:8000`
 ### Available Endpoints
 
 - `GET /health` - Health check endpoint
+- `WS /ws` - WebSocket endpoint for real-time communication
 - `GET /docs` - Interactive API documentation (Swagger UI)
 - `GET /redoc` - Alternative API documentation (ReDoc)
 
-## Running Tests
+## Testing
+
+### Running Automated Tests
 
 Run all tests:
 ```bash
@@ -56,4 +59,21 @@ uv run pytest
 Run tests with verbose output:
 ```bash
 uv run pytest -v
+```
+
+Run only WebSocket tests:
+```bash
+uv run pytest tests/test_websocket.py -v
+```
+
+### WebSocket (Phase 1B)
+
+The WebSocket endpoint at `/ws` accepts JSON messages and echoes them back.
+
+**Message Format:**
+```json
+{
+  "type": "echo",
+  "data": "your message here"
+}
 ```
