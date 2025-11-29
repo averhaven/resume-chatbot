@@ -1,174 +1,152 @@
 # Resume Chatbot Project Plan
 
 ## Project Overview
-Build a production-ready chatbot that answers questions about your resume using RAG (Retrieval Augmented Generation) architecture with real-time WebSocket communication. This project showcases skills relevant for senior Python developer roles.
+Build a production-ready chatbot that answers questions about your resume using direct LLM API calls with real-time WebSocket communication. The chatbot sends the full resume context along with conversation history to the LLM on each request, providing accurate and contextual responses.
 
 ## Technology Stack
 
 ### Backend (Python)
 - **FastAPI**: Modern async framework with native WebSocket support and auto-generated OpenAPI docs
-- **LangChain**: LLM orchestration and RAG pipeline
-- **ChromaDB**: Free vector database for semantic search over resume content
-- **Sentence-Transformers**: Free embeddings models (all-MiniLM-L6-v2)
-- **Ollama + Llama 3.1/Mistral**: Free open-source LLM (local dev), with Hugging Face Inference API (free tier) for deployment
-- **SQLAlchemy + PostgreSQL/SQLite**: Database ORM and storage for chat history
+- **OpenRouter**: Unified LLM API gateway (supports GPT-4, Claude, Llama, and more)
+- **SQLAlchemy**: Async ORM for database operations
+- **PostgreSQL**: Production database for chat history persistence
+- **asyncpg**: Async PostgreSQL driver for SQLAlchemy
 - **Alembic**: Database migrations
-- **Pydantic**: Data validation
-- **pytest + pytest-asyncio**: Testing
+- **Pydantic**: Data validation and settings management
+- **httpx**: Async HTTP client for OpenRouter API calls
+- **pytest + pytest-asyncio**: Testing framework
 
 ### Infrastructure
-- **Docker**: Containerization for consistent deployment
-- **Render or Railway**: PaaS with free tier, WebSocket support, and easy GitHub integration
+- **Docker + docker-compose**: Local development environment (PostgreSQL container)
 - **GitHub Actions**: CI/CD pipeline (optional)
 
 ## Architecture
 
-### RAG (Retrieval Augmented Generation) Flow
-1. Resume content chunked and embedded into vectors (one-time preprocessing)
-2. User question embedded using same model
-3. Semantic search finds relevant resume sections
-4. Context + question sent to LLM
-5. LLM generates natural language response
-6. Response streamed back via WebSocket
+### Simplified LLM Flow
+1. Resume loaded once at startup and kept in memory
+2. User sends question via WebSocket
+3. Backend builds prompt: system message + full resume + conversation history + user question
+4. Direct API call to OpenRouter (LLM of choice)
+5. LLM generates response (optionally streamed)
+6. Response sent back via WebSocket
+7. Conversation (user + assistant messages) stored in PostgreSQL
 
 ### WebSocket Communication
 - Persistent connection for real-time chat experience
-- Streaming responses (token-by-token)
+- Streaming responses (token-by-token from LLM)
 - Connection management and reconnection logic
-- Shows real-time system design skills
+- Session-based conversation tracking
 
 ## Implementation Phases
 
-### Phase 1: Backend Core (Days 1-2)
-**Objective**: Build the foundation with FastAPI, WebSocket, and RAG pipeline
+### Phase 1: Backend Core & LLM Integration
+**Objective**: Build the foundation with FastAPI, WebSocket, resume loading, and OpenRouter integration
 
 **Tasks**:
-- Set up FastAPI project structure
-- Create WebSocket endpoint for chat
-- Design resume data format (JSON/YAML)
-- Implement ChromaDB vector store
-- Create embeddings pipeline using Sentence-Transformers
-- Build RAG retrieval function (semantic search)
-- Write unit tests for retrieval accuracy
-- Test WebSocket connection manually
+- ✅ Set up FastAPI project structure (COMPLETED)
+- ✅ Create WebSocket endpoint with basic echo functionality (COMPLETED)
+- ✅ Add configuration management and logging (COMPLETED)
+- Design resume data format (JSON, YAML, or Markdown)
+- Create resume loader service (load at startup, keep in memory)
+- Set up OpenRouter API client (httpx-based)
+- Design prompt template for resume Q&A
+- Implement conversation state manager (in-memory, per WebSocket session)
+- Integrate LLM calls into WebSocket endpoint:
+  - Build prompt with system message + resume + conversation history
+  - Call OpenRouter API
+  - Handle streaming responses
+  - Send responses via WebSocket
+- Add error handling for LLM API failures
+- Write tests for resume loading, LLM client, and WebSocket integration
 
 **Deliverables**:
-- Working FastAPI server with WebSocket endpoint
-- Resume content embedded in ChromaDB
-- Basic retrieval working (can find relevant resume sections)
+- Working end-to-end chat: user question → LLM response with resume context
+- Resume loaded and injected into prompts
+- Conversation history maintained per WebSocket connection
+- Streaming responses working
 - Tests passing
 
-### Phase 2: LLM Integration (Day 3)
-**Objective**: Connect LLM to generate natural language responses
+### Phase 2: Database Persistence
+**Objective**: Persist chat conversations to PostgreSQL
 
 **Tasks**:
-- Install and configure Ollama locally (Llama 3.1 or Mistral)
-- Set up LangChain RAG chain
-- Design prompt template for resume Q&A
-- Implement context injection (retrieved docs + question)
-- Add streaming response via WebSocket
-- Handle LLM errors gracefully
-- Test with sample questions about resume
-
-**Deliverables**:
-- End-to-end RAG working (question → relevant context → LLM response)
-- Streaming responses over WebSocket
-- Good prompt engineering for professional responses
-
-### Phase 3: Chat History Persistence (Day 4)
-**Objective**: Store and retrieve chat conversations from database
-
-**Tasks**:
-- Set up SQLAlchemy with async support
+- Set up PostgreSQL with Docker (docker-compose.yml for local dev)
+- Configure SQLAlchemy with async support (asyncpg driver)
 - Design database schema:
-  - Conversations table (id, user_id, created_at, updated_at)
-  - Messages table (id, conversation_id, role, content, timestamp)
-- Create Alembic migration scripts
-- Implement database models with proper relationships
-- Add database session management
-- Create repository/service layer for chat operations:
-  - Save new conversation
-  - Save messages (user questions and AI responses)
-  - Retrieve conversation history
+  - `conversations` table (id, session_id, created_at, updated_at)
+  - `messages` table (id, conversation_id, role, content, timestamp)
+- Create SQLAlchemy models with relationships
+- Set up Alembic for migrations
+- Create initial migration
+- Implement database repository/service layer:
+  - Create conversation
+  - Save messages (user + assistant)
+  - Retrieve conversation history by session ID
   - List all conversations
-- Integrate database saving into WebSocket handler
-- Add ability to resume conversations by ID
+- Integrate database persistence into WebSocket handler
+- Add ability to resume conversations by session/conversation ID
 - Write tests for database operations
-- Add database cleanup/archiving functionality (optional)
+- Handle database connection pooling and session management
 
 **Deliverables**:
-- Working database schema for chat history
-- All chat conversations persisted automatically
-- Ability to retrieve past conversations
-- Database migrations in place
-- Tests for database operations
+- PostgreSQL running locally via Docker
+- All conversations automatically persisted to database
+- Ability to retrieve and resume past conversations
+- Database migrations working
+- Tests passing
 
-### Phase 4: Production Features (Day 5)
-**Objective**: Add features that show production-ready thinking
+### Phase 3: Production Features
+**Objective**: Add production-ready features and polish
 
 **Tasks**:
-- Environment configuration (`.env` files)
-- Add rate limiting to prevent abuse
-- Input validation and sanitization
-- Structured logging (JSON logs)
-- Error handling and user-friendly messages
-- Create Dockerfile for backend
-- Add docker-compose.yml for local development (backend + database)
-- Write comprehensive README with:
+- Enhanced error handling and user-friendly error messages
+- Add rate limiting to prevent API abuse
+- Input validation and sanitization (prevent injection attacks)
+- Implement token counting and context window management
+- Add conversation pruning (keep last N messages when approaching limits)
+- Structured logging with request IDs
+- Add health check endpoint with database connectivity check
+- Environment variable validation at startup
+- Create comprehensive README with:
   - Architecture diagram
-  - Setup instructions
-  - API documentation
-  - Environment variables
+  - Local setup instructions (Docker, environment variables)
+  - API documentation (WebSocket message formats)
   - Database schema documentation
+  - OpenRouter setup instructions
+- Add API documentation examples (WebSocket client examples)
+- Polish OpenAPI/Swagger docs
 
 **Deliverables**:
-- Production-ready security features
-- Dockerized application
+- Production-ready security and reliability features
+- Token management preventing context overflow
 - Excellent documentation
+- Robust error handling
 
-### Phase 5: Deployment (Day 6)
-**Objective**: Deploy to production and make publicly accessible
-
-**Tasks**:
-- Choose platform (Render or Railway)
-- Set up PostgreSQL database in production
-- Deploy backend service
-- Configure Hugging Face Inference API (free tier) for production LLM
-- Set up environment variables in production
-- Run database migrations in production
-- Configure custom domain (optional)
-- Test production deployment thoroughly
-- Monitor logs and performance
-
-**Deliverables**:
-- Live backend API with database
-- Working production LLM integration
-- Stable deployment with persistent storage
-
-### Phase 6: Polish & Documentation (Day 7)
-**Objective**: Make portfolio-ready
+### Phase 4: Polish & Testing
+**Objective**: Final polish and comprehensive testing
 
 **Tasks**:
-- Create comprehensive API documentation with examples
-- Add code documentation (docstrings)
-- Create architecture diagram showing RAG + WebSocket + Database flow
-- Polish README with:
-  - API usage examples (curl/Postman examples)
-  - Database schema diagram
-  - Detailed setup and deployment instructions
-- Add "About This Project" section explaining technical choices
-- Add OpenAPI/Swagger documentation
+- Add code documentation (docstrings for all public functions)
+- Create architecture diagram (resume → LLM → WebSocket → PostgreSQL flow)
+- Comprehensive integration tests
+- Load testing for WebSocket connections
+- Test conversation persistence end-to-end
+- Add "About This Project" section to README
+- Code cleanup and refactoring
+- Performance optimization (connection pooling, caching)
 - Set up CI/CD with GitHub Actions (optional)
 
 **Deliverables**:
 - Portfolio-ready backend with excellent documentation
-- Clear API examples for testing
-- Professional presentation
+- Comprehensive test coverage
+- Clean, maintainable codebase
 
 ## Estimated Timeline
-- **Total**: 6-7 days for backend implementation (working part-time)
-- **MVP**: 4 days (Phases 1-3: Core backend + LLM + Chat history)
-- **Production-ready**: Add 2-3 more days (Phases 4-6: Production features + Deployment + Polish)
+- **Phase 1** (Backend Core & LLM): 1.5-2 days
+- **Phase 2** (Database Persistence): 1-1.5 days
+- **Phase 3** (Production Features): 1-1.5 days
+- **Phase 4** (Polish & Testing): 0.5-1 day
+- **Total MVP**: 4-6 days
 
 ## Next Steps
 Start with Phase 1: Backend Core. Work through each phase sequentially, writing tests as you implement each feature.

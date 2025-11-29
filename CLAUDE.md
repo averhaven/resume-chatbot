@@ -4,16 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a production-ready resume chatbot backend using RAG (Retrieval Augmented Generation) architecture with real-time WebSocket communication. The project is being built in phases (see PROJECT_PLAN.md) and is currently in Phase 1 (Backend Core).
+This is a production-ready resume chatbot backend using direct LLM API calls with real-time WebSocket communication. The chatbot sends the full resume context along with conversation history to an LLM on each request. The project is being built in phases (see PROJECT_PLAN.md) and is currently in Phase 1 (Backend Core & LLM Integration).
 
-**Current Status**: Phase 1B completed (WebSocket basics). Next steps are Phase 1C (Resume Data & Embeddings) and Phase 1D (Vector Store & Retrieval).
+**Current Status**: Phase 1B completed (WebSocket basics). Next steps are Phase 1C (Resume Data & OpenRouter Setup) and Phase 1D (Conversation Management & Integration).
 
 ## Technology Stack
 
 - **Framework**: FastAPI with async WebSocket support
 - **Package Manager**: uv (NOT pip/poetry)
 - **Python Version**: 3.13+
-- **Planned**: LangChain, ChromaDB, Sentence-Transformers, SQLAlchemy, PostgreSQL
+- **LLM Provider**: OpenRouter (unified API gateway for multiple LLMs)
+- **Database**: PostgreSQL (with SQLAlchemy async + asyncpg driver)
+- **HTTP Client**: httpx (for OpenRouter API calls)
+- **Testing**: pytest + pytest-asyncio
 
 ## Common Commands
 
@@ -52,11 +55,15 @@ backend/
 │   │   └── logger.py        # Logging setup
 │   ├── models/              # Pydantic models for data validation
 │   │   └── websocket.py     # WebSocket message schemas
-│   ├── api/                 # REST API endpoints (future)
-│   ├── db/                  # Database models and setup (future)
-│   └── services/            # Business logic (future)
+│   ├── services/            # Business logic
+│   │   ├── resume_loader.py # Resume loading and text extraction (Phase 1C)
+│   │   ├── llm_client.py    # OpenRouter API client (Phase 1C)
+│   │   ├── conversation.py  # Conversation state management (Phase 1D)
+│   │   └── prompts.py       # Prompt templates and builders (Phase 1D)
+│   ├── db/                  # Database models and setup (Phase 2)
+│   └── api/                 # REST API endpoints (future)
 ├── tests/                   # Pytest test suite
-├── data/                    # Resume data and vector store (future)
+├── data/                    # Resume data (JSON/YAML/Markdown)
 └── pyproject.toml           # uv project configuration
 ```
 
@@ -81,10 +88,23 @@ backend/
 - Proper connection lifecycle: accept → loop → disconnect handling
 - All messages are JSON format: `{"type": "string", "data": "any"}`
 
-### Planned Architecture (Future Phases)
-- **RAG Pipeline**: Resume chunks → embeddings (Sentence-Transformers) → ChromaDB → semantic search
-- **LLM Integration**: LangChain for orchestration, streaming responses via WebSocket
-- **Database**: SQLAlchemy with async support, Alembic migrations, conversation/message persistence
+### LLM Integration Architecture (Phase 1C-1D)
+- **Resume Loading**: Load resume file at startup, keep full text in memory
+- **OpenRouter Client**: Direct HTTP API calls using httpx (no LangChain, no embeddings)
+- **Conversation Flow**:
+  1. User sends message via WebSocket
+  2. Add to in-memory conversation state (per session)
+  3. Build prompt: system message + full resume + conversation history + new question
+  4. Call OpenRouter API with formatted messages
+  5. Stream or send complete response back via WebSocket
+  6. Add assistant response to conversation state
+- **Prompt Format**: OpenAI-compatible message format (system/user/assistant roles)
+
+### Database Architecture (Phase 2)
+- **PostgreSQL**: Conversation persistence using Docker for local dev
+- **SQLAlchemy**: Async ORM with asyncpg driver
+- **Schema**: Conversations table + Messages table (role, content, timestamp)
+- **Alembic**: Database migrations
 
 ## Development Guidelines
 
@@ -110,6 +130,17 @@ backend/
 - Handle disconnections gracefully with proper logging
 - Use try-except blocks to catch validation errors and other exceptions
 - Log connection lifecycle events (connect, disconnect, errors)
+- Generate session IDs (UUID) on connection for conversation tracking
+- Clean up session state on disconnect
+
+### LLM Integration Guidelines (Phase 1C+)
+- Use httpx.AsyncClient for OpenRouter API calls
+- Implement retry logic with exponential backoff for API failures
+- Handle rate limits gracefully (return user-friendly errors)
+- Format prompts in OpenAI-compatible message format
+- Keep resume text in memory (loaded once at startup)
+- Manage conversation state per WebSocket session (in-memory dict)
+- Add timeout handling for LLM API calls (prevent hanging connections)
 
 ## API Documentation
 
@@ -119,12 +150,12 @@ When the server is running, interactive API docs are available at:
 
 ## Project Roadmap Context
 
-This project follows a 7-phase development plan (see PROJECT_PLAN.md):
-1. **Phase 1** (Current): Backend Core - FastAPI, WebSocket, embeddings, vector store
-2. **Phase 2**: LLM Integration - Ollama/Llama, LangChain RAG chain, streaming
-3. **Phase 3**: Chat History - SQLAlchemy, PostgreSQL, conversation persistence
-4. **Phase 4**: Production Features - Rate limiting, validation, Docker, logging
-5. **Phase 5**: Deployment - Render/Railway, production LLM, PostgreSQL
-6. **Phase 6**: Polish & Documentation
+This project follows a 4-phase development plan (see PROJECT_PLAN.md):
+1. **Phase 1** (Current): Backend Core & LLM Integration - FastAPI, WebSocket, resume loading, OpenRouter API, conversation management
+2. **Phase 2**: Database Persistence - PostgreSQL (Docker), SQLAlchemy async, Alembic migrations, conversation storage
+3. **Phase 3**: Production Features - Rate limiting, token management, error handling, comprehensive documentation
+4. **Phase 4**: Polish & Testing - Code documentation, architecture diagrams, integration tests, CI/CD
+
+**Current Phase**: Phase 1 (1A ✅, 1B ✅, 1C and 1D next)
 
 Each phase has specific deliverables. Always check PROJECT_PLAN.md and PHASE_1_PLAN.md for current objectives.
