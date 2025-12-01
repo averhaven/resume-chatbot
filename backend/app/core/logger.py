@@ -1,15 +1,16 @@
 import logging
 import sys
-from app.core.config import Settings, settings
+
+from app.core.config import Settings, get_settings
 
 
 def setup_logging(config: Settings | None = None) -> None:
-    """Configure application logging based on settings
+    """Configure application logging based on settings.
 
     Args:
-        config: Settings instance to use. If None, uses global settings.
+        config: Settings instance to use. If None, gets settings from factory.
     """
-    cfg = config or settings
+    cfg = config or get_settings()
 
     # Determine log level based on debug setting
     log_level = logging.DEBUG if cfg.debug else logging.INFO

@@ -1,16 +1,49 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from app.core.logger import setup_logging, get_logger
-from app.models.websocket import WebSocketMessage
+from contextlib import asynccontextmanager
+from pathlib import Path
 
-# Setup logging
-setup_logging()
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+
+from app.core.config import get_settings
+from app.core.logger import get_logger, setup_logging
+from app.models.websocket import WebSocketMessage
+from app.services.resume_loader import create_resume_loader
+
+# Get logger instance (will be configured during startup)
 logger = get_logger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan events."""
+    # Setup logging
+    setup_logging()
+    logger = get_logger(__name__)
+    logger.info("Application starting up")
+
+    # Load resume data
+    settings = get_settings()
+    resume_path = Path(settings.resume_path)
+
+    # Make path absolute if it's relative
+    if not resume_path.is_absolute():
+        resume_path = Path(__file__).parent.parent / resume_path
+
+    app.state.resume_loader = create_resume_loader(resume_path)
+    logger.info(f"Resume loaded from {resume_path}")
+
+    yield
+
+    # Shutdown: Cleanup if needed
+    logger.info("Application shutting down")
+
 
 app = FastAPI(
     title="Resume Chatbot API",
     description="A chatbot that answers questions about your resume using RAG",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan,
 )
+
 
 @app.get("/health")
 async def health_check():
@@ -37,7 +70,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # Echo back the message
             await websocket.send_json(message.model_dump())
-            logger.debug(f"Sent echo response")
+            logger.debug("Sent echo response")
     except WebSocketDisconnect:
         logger.info("Client disconnected from WebSocket")
     except Exception as e:
