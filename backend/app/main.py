@@ -16,12 +16,66 @@ from app.services.resume_loader import create_resume_loader
 logger = get_logger(__name__)
 
 
+async def send_error_response(
+    websocket: WebSocket,
+    error_message: str,
+    error_code: str,
+    log_level: str = "error",
+) -> None:
+    """Send error response via WebSocket and log it.
+
+    Args:
+        websocket: WebSocket connection
+        error_message: Error message to send to client
+        error_code: Error code identifier
+        log_level: Logging level - "error", "warning", or "info"
+    """
+    error = ErrorMessage(error=error_message, code=error_code)
+    await websocket.send_json(error.model_dump())
+
+    log_func = getattr(logger, log_level, logger.error)
+    log_func(f"{error_code}: {error_message}")
+
+
+async def process_question(
+    question: str,
+    resume_text: str,
+    conversation_manager,
+    llm_client,
+) -> str:
+    """Process a user question and generate LLM response.
+
+    Args:
+        question: User's question text
+        resume_text: Formatted resume text
+        conversation_manager: Conversation manager instance
+        llm_client: LLM client instance
+
+    Returns:
+        LLM response text
+    """
+    # Get conversation history
+    history = conversation_manager.get_conversation()
+
+    # Build prompt with resume, history, and new question
+    messages = build_prompt(resume_text, history, question)
+
+    # Call LLM API
+    logger.info("Calling LLM API")
+    response_text = await llm_client.call_llm(messages)
+
+    # Add user question and assistant response to conversation history
+    conversation_manager.add_message("user", question)
+    conversation_manager.add_message("assistant", response_text)
+
+    return response_text
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan events."""
     # Setup logging
     setup_logging()
-    logger = get_logger(__name__)
     logger.info("Application starting up")
 
     # Load resume data
@@ -47,7 +101,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Resume Chatbot API",
-    description="A chatbot that answers questions about your resume using RAG",
+    description="A chatbot that answers questions about your resume using direct LLM calls",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -95,19 +149,13 @@ async def websocket_endpoint(websocket: WebSocket):
                     question_msg = QuestionMessage(**data)
                     logger.info("Received question")
 
-                    # Get conversation history (excludes system messages)
-                    history = conversation_manager.get_conversation()
-
-                    # Build prompt with resume, history, and new question
-                    messages = build_prompt(resume_text, history, question_msg.question)
-
-                    # Call LLM API
-                    logger.info("Calling LLM API")
-                    response_text = await llm_client.call_llm(messages)
-
-                    # Add user question and assistant response to conversation history
-                    conversation_manager.add_message("user", question_msg.question)
-                    conversation_manager.add_message("assistant", response_text)
+                    # Process question and get response
+                    response_text = await process_question(
+                        question_msg.question,
+                        resume_text,
+                        conversation_manager,
+                        llm_client,
+                    )
 
                     # Send response back to client
                     response = ResponseMessage(response=response_text)
@@ -115,46 +163,38 @@ async def websocket_endpoint(websocket: WebSocket):
                     logger.info(f"Sent response ({len(response_text)} chars)")
 
                 except ValidationError as e:
-                    # Invalid message format
-                    error = ErrorMessage(
-                        error=f"Invalid message format: {str(e)}", code="VALIDATION_ERROR"
+                    await send_error_response(
+                        websocket,
+                        f"Invalid message format: {str(e)}",
+                        "VALIDATION_ERROR",
+                        "warning",
                     )
-                    await websocket.send_json(error.model_dump())
-                    logger.warning(f"Validation error: {e}")
 
                 except LLMRateLimitError:
-                    # Rate limit exceeded
-                    error = ErrorMessage(
-                        error="Rate limit exceeded. Please try again later.",
-                        code="RATE_LIMIT",
+                    await send_error_response(
+                        websocket,
+                        "Rate limit exceeded. Please try again later.",
+                        "RATE_LIMIT",
+                        "warning",
                     )
-                    await websocket.send_json(error.model_dump())
-                    logger.warning("Rate limit exceeded")
 
                 except LLMAPIError as e:
-                    # LLM API error
-                    error = ErrorMessage(
-                        error=f"API error: {str(e)}", code="API_ERROR"
+                    await send_error_response(
+                        websocket, f"API error: {str(e)}", "API_ERROR"
                     )
-                    await websocket.send_json(error.model_dump())
-                    logger.error(f"API error: {e}")
 
                 except LLMError as e:
-                    # Other LLM errors
-                    error = ErrorMessage(
-                        error=f"Service error: {str(e)}", code="LLM_ERROR"
+                    await send_error_response(
+                        websocket, f"Service error: {str(e)}", "LLM_ERROR"
                     )
-                    await websocket.send_json(error.model_dump())
-                    logger.error(f"LLM error: {e}")
 
                 except Exception as e:
-                    # Unexpected error
-                    error = ErrorMessage(
-                        error="An unexpected error occurred. Please try again.",
-                        code="INTERNAL_ERROR",
+                    await send_error_response(
+                        websocket,
+                        "An unexpected error occurred. Please try again.",
+                        "INTERNAL_ERROR",
                     )
-                    await websocket.send_json(error.model_dump())
-                    logger.error(f"Unexpected error: {e}", exc_info=True)
+                    logger.error(f"Unexpected error details: {e}", exc_info=True)
 
     except WebSocketDisconnect:
         logger.info("Client disconnected")

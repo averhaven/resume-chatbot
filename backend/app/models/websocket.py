@@ -3,18 +3,6 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-class WebSocketMessage(BaseModel):
-    """Base WebSocket message format for communication
-
-    Attributes:
-        type: Message type (e.g., 'question', 'response', 'error', 'system')
-        data: Message content/payload
-    """
-
-    type: str
-    data: str
-
-
 class QuestionMessage(BaseModel):
     """User question message
 

@@ -72,13 +72,25 @@ class OpenRouterClient:
             await self._client.aclose()
             self._client = None
 
-    def _get_client(self) -> httpx.AsyncClient | None:
-        """Get the httpx client instance.
+    async def _should_retry(self, attempt: int, error_msg: str) -> bool:
+        """Handle retry logic with exponential backoff.
+
+        Args:
+            attempt: Current attempt number (0-indexed)
+            error_msg: Error message to log
 
         Returns:
-            httpx.AsyncClient instance, or None if not initialized
+            True if should retry, False if retries exhausted
         """
-        return self._client
+        if attempt < self.max_retries - 1:
+            backoff_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+            logger.warning(
+                f"{error_msg}, retrying in {backoff_time}s "
+                f"(attempt {attempt + 1}/{self.max_retries})"
+            )
+            await asyncio.sleep(backoff_time)
+            return True
+        return False
 
     async def call_llm(
         self,
@@ -101,11 +113,9 @@ class OpenRouterClient:
             LLMAPIError: If API returns an error
             LLMError: For other errors
         """
-        client = self._get_client()
-
         for attempt in range(self.max_retries):
             try:
-                response = await client.post(
+                response = await self._client.post(
                     "/chat/completions",
                     json={
                         "model": self.model,
@@ -117,16 +127,9 @@ class OpenRouterClient:
 
                 # Handle rate limiting with exponential backoff
                 if response.status_code == 429:
-                    if attempt < self.max_retries - 1:
-                        backoff_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
-                        logger.warning(
-                            f"Rate limit hit, retrying in {backoff_time}s "
-                            f"(attempt {attempt + 1}/{self.max_retries})"
-                        )
-                        await asyncio.sleep(backoff_time)
+                    if await self._should_retry(attempt, "Rate limit hit"):
                         continue
-                    else:
-                        raise LLMRateLimitError("Rate limit exceeded after all retries")
+                    raise LLMRateLimitError("Rate limit exceeded after all retries")
 
                 # Handle other HTTP errors
                 if not response.is_success:
@@ -141,28 +144,14 @@ class OpenRouterClient:
                 return content
 
             except httpx.TimeoutException:
-                if attempt < self.max_retries - 1:
-                    backoff_time = 2 ** attempt
-                    logger.warning(
-                        f"Request timeout, retrying in {backoff_time}s "
-                        f"(attempt {attempt + 1}/{self.max_retries})"
-                    )
-                    await asyncio.sleep(backoff_time)
+                if await self._should_retry(attempt, "Request timeout"):
                     continue
-                else:
-                    raise LLMError("Request timed out after all retries")
+                raise LLMError("Request timed out after all retries")
 
             except httpx.RequestError as e:
-                if attempt < self.max_retries - 1:
-                    backoff_time = 2 ** attempt
-                    logger.warning(
-                        f"Network error: {e}, retrying in {backoff_time}s "
-                        f"(attempt {attempt + 1}/{self.max_retries})"
-                    )
-                    await asyncio.sleep(backoff_time)
+                if await self._should_retry(attempt, f"Network error: {e}"):
                     continue
-                else:
-                    raise LLMError(f"Network error after all retries: {e}")
+                raise LLMError(f"Network error after all retries: {e}")
 
             except (LLMRateLimitError, LLMAPIError):
                 # Re-raise our own exceptions without wrapping
