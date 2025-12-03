@@ -83,83 +83,78 @@ async def websocket_endpoint(websocket: WebSocket):
     welcome = SystemMessage(message="Connected! Ready to answer questions about the resume.")
     await websocket.send_json(welcome.model_dump())
 
-    # Initialize LLM client
-    llm_client = None
-
     try:
-        # Create LLM client (async context manager)
-        llm_client = create_llm_client()
-        await llm_client.__aenter__()
+        # Create LLM client using async context manager
+        async with create_llm_client() as llm_client:
+            while True:
+                # Receive and parse JSON message
+                data = await websocket.receive_json()
 
-        while True:
-            # Receive and parse JSON message
-            data = await websocket.receive_json()
+                try:
+                    # Parse as question message
+                    question_msg = QuestionMessage(**data)
+                    logger.info("Received question")
 
-            try:
-                # Parse as question message
-                question_msg = QuestionMessage(**data)
-                logger.info("Received question")
+                    # Get conversation history (excludes system messages)
+                    history = conversation_manager.get_conversation()
 
-                # Get conversation history (excludes system messages)
-                history = conversation_manager.get_conversation()
+                    # Build prompt with resume, history, and new question
+                    messages = build_prompt(resume_text, history, question_msg.question)
 
-                # Build prompt with resume, history, and new question
-                messages = build_prompt(resume_text, history, question_msg.question)
+                    # Call LLM API
+                    logger.info("Calling LLM API")
+                    response_text = await llm_client.call_llm(messages)
 
-                # Call LLM API
-                logger.info("Calling LLM API")
-                response_text = await llm_client.call_llm(messages)
+                    # Add user question and assistant response to conversation history
+                    conversation_manager.add_message("user", question_msg.question)
+                    conversation_manager.add_message("assistant", response_text)
 
-                # Add user question and assistant response to conversation history
-                conversation_manager.add_message("user", question_msg.question)
-                conversation_manager.add_message("assistant", response_text)
+                    # Send response back to client
+                    response = ResponseMessage(response=response_text)
+                    await websocket.send_json(response.model_dump())
+                    logger.info(f"Sent response ({len(response_text)} chars)")
 
-                # Send response back to client
-                response = ResponseMessage(response=response_text)
-                await websocket.send_json(response.model_dump())
-                logger.info(f"Sent response ({len(response_text)} chars)")
+                except ValidationError as e:
+                    # Invalid message format
+                    error = ErrorMessage(
+                        error=f"Invalid message format: {str(e)}", code="VALIDATION_ERROR"
+                    )
+                    await websocket.send_json(error.model_dump())
+                    logger.warning(f"Validation error: {e}")
 
-            except ValidationError as e:
-                # Invalid message format
-                error = ErrorMessage(
-                    error=f"Invalid message format: {str(e)}", code="VALIDATION_ERROR"
-                )
-                await websocket.send_json(error.model_dump())
-                logger.warning(f"Validation error: {e}")
+                except LLMRateLimitError:
+                    # Rate limit exceeded
+                    error = ErrorMessage(
+                        error="Rate limit exceeded. Please try again later.",
+                        code="RATE_LIMIT",
+                    )
+                    await websocket.send_json(error.model_dump())
+                    logger.warning("Rate limit exceeded")
 
-            except LLMRateLimitError:
-                # Rate limit exceeded
-                error = ErrorMessage(
-                    error="Rate limit exceeded. Please try again later.",
-                    code="RATE_LIMIT",
-                )
-                await websocket.send_json(error.model_dump())
-                logger.warning("Rate limit exceeded")
+                except LLMAPIError as e:
+                    # LLM API error
+                    error = ErrorMessage(
+                        error=f"API error: {str(e)}", code="API_ERROR"
+                    )
+                    await websocket.send_json(error.model_dump())
+                    logger.error(f"API error: {e}")
 
-            except LLMAPIError as e:
-                # LLM API error
-                error = ErrorMessage(
-                    error=f"API error: {str(e)}", code="API_ERROR"
-                )
-                await websocket.send_json(error.model_dump())
-                logger.error(f"API error: {e}")
+                except LLMError as e:
+                    # Other LLM errors
+                    error = ErrorMessage(
+                        error=f"Service error: {str(e)}", code="LLM_ERROR"
+                    )
+                    await websocket.send_json(error.model_dump())
+                    logger.error(f"LLM error: {e}")
 
-            except LLMError as e:
-                # Other LLM errors
-                error = ErrorMessage(
-                    error=f"Service error: {str(e)}", code="LLM_ERROR"
-                )
-                await websocket.send_json(error.model_dump())
-                logger.error(f"LLM error: {e}")
-
-            except Exception as e:
-                # Unexpected error
-                error = ErrorMessage(
-                    error="An unexpected error occurred. Please try again.",
-                    code="INTERNAL_ERROR",
-                )
-                await websocket.send_json(error.model_dump())
-                logger.error(f"Unexpected error: {e}", exc_info=True)
+                except Exception as e:
+                    # Unexpected error
+                    error = ErrorMessage(
+                        error="An unexpected error occurred. Please try again.",
+                        code="INTERNAL_ERROR",
+                    )
+                    await websocket.send_json(error.model_dump())
+                    logger.error(f"Unexpected error: {e}", exc_info=True)
 
     except WebSocketDisconnect:
         logger.info("Client disconnected")
@@ -168,7 +163,4 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.error(f"WebSocket error: {e}", exc_info=True)
 
     finally:
-        # Close LLM client
-        if llm_client:
-            await llm_client.__aexit__(None, None, None)
         logger.info("WebSocket connection closed")
