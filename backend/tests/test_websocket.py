@@ -1,70 +1,103 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
+
 from app.main import app
 
 client = TestClient(app)
 
 
-def test_websocket_connection():
+@pytest.fixture
+def mock_llm_client():
+    """Create a mock LLM client for testing."""
+    mock_client = AsyncMock()
+    mock_client.call_llm = AsyncMock(return_value="Mock LLM response")
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    return mock_client
+
+
+def test_websocket_connection(mock_llm_client):
     """Test that a client can successfully connect to the WebSocket endpoint"""
-    with client.websocket_connect("/ws") as websocket:
-        # If we get here, connection was successful
-        assert websocket is not None
-
-
-def test_websocket_echo():
-    """Test that the WebSocket correctly echoes back JSON messages"""
-    with client.websocket_connect("/ws") as websocket:
-        # Send a test message
-        test_message = {"type": "echo", "data": "Hello, WebSocket!"}
-        websocket.send_json(test_message)
-
-        # Receive the echo response
-        response = websocket.receive_json()
-
-        # Verify it's the same message
-        assert response == test_message
-        assert response["type"] == "echo"
-        assert response["data"] == "Hello, WebSocket!"
-
-
-def test_websocket_multiple_messages():
-    """Test sending multiple messages in sequence"""
-    with client.websocket_connect("/ws") as websocket:
-        messages = [
-            {"type": "echo", "data": "First message"},
-            {"type": "echo", "data": "Second message"},
-            {"type": "echo", "data": "Third message"},
-        ]
-
-        for msg in messages:
-            websocket.send_json(msg)
-            response = websocket.receive_json()
-            assert response == msg
-
-
-def test_websocket_invalid_json_structure():
-    """Test that invalid message structure is handled gracefully"""
-    # Send invalid JSON and verify the server handles it without crashing
-    # With simplified error handling, the server logs the error and closes connection
-    try:
+    with patch("app.main.create_llm_client", return_value=mock_llm_client):
         with client.websocket_connect("/ws") as websocket:
-            invalid_message = {"wrong_field": "value"}
+            # Should receive welcome message
+            welcome = websocket.receive_json()
+            assert welcome["type"] == "system"
+            assert "Connected" in welcome["message"]
+
+
+def test_websocket_basic_chat(mock_llm_client):
+    """Test basic chat functionality via WebSocket"""
+    with patch("app.main.create_llm_client", return_value=mock_llm_client):
+        with client.websocket_connect("/ws") as websocket:
+            # Receive welcome message
+            welcome = websocket.receive_json()
+            assert welcome["type"] == "system"
+
+            # Send a question
+            question = {"type": "question", "question": "What is your name?"}
+            websocket.send_json(question)
+
+            # Receive response
+            response = websocket.receive_json()
+            assert response["type"] == "response"
+            assert "response" in response
+            assert response["response"] == "Mock LLM response"
+
+
+def test_websocket_multiple_messages(mock_llm_client):
+    """Test sending multiple messages in sequence"""
+    responses = ["Response 1", "Response 2", "Response 3"]
+    mock_llm_client.call_llm = AsyncMock(side_effect=responses)
+
+    with patch("app.main.create_llm_client", return_value=mock_llm_client):
+        with client.websocket_connect("/ws") as websocket:
+            # Receive welcome message
+            welcome = websocket.receive_json()
+            assert welcome["type"] == "system"
+
+            questions = ["Question 1", "Question 2", "Question 3"]
+
+            for i, question_text in enumerate(questions):
+                websocket.send_json({"type": "question", "question": question_text})
+                response = websocket.receive_json()
+                assert response["type"] == "response"
+                assert response["response"] == responses[i]
+
+
+def test_websocket_invalid_json_structure(mock_llm_client):
+    """Test that invalid message structure is handled gracefully"""
+    with patch("app.main.create_llm_client", return_value=mock_llm_client):
+        with client.websocket_connect("/ws") as websocket:
+            # Receive welcome message
+            welcome = websocket.receive_json()
+            assert welcome["type"] == "system"
+
+            # Send invalid message (missing 'question' field)
+            invalid_message = {"type": "question"}
             websocket.send_json(invalid_message)
-            # Connection will close due to validation error
-    except Exception:
-        # Connection closed, which is expected behavior
-        pass
+
+            # Should receive error message
+            response = websocket.receive_json()
+            assert response["type"] == "error"
+            assert "error" in response
+            assert response["code"] == "VALIDATION_ERROR"
 
 
-def test_websocket_disconnect():
+def test_websocket_disconnect(mock_llm_client):
     """Test that WebSocket disconnection is handled gracefully"""
-    with client.websocket_connect("/ws") as websocket:
-        # Send a message to confirm connection works
-        test_message = {"type": "echo", "data": "test"}
-        websocket.send_json(test_message)
-        response = websocket.receive_json()
-        assert response == test_message
+    with patch("app.main.create_llm_client", return_value=mock_llm_client):
+        with client.websocket_connect("/ws") as websocket:
+            # Receive welcome message
+            welcome = websocket.receive_json()
+            assert welcome["type"] == "system"
 
-    # Context manager automatically closes the connection
-    # If we get here without errors, disconnect was handled gracefully
+            # Send a message to confirm connection works
+            websocket.send_json({"type": "question", "question": "Test question"})
+            response = websocket.receive_json()
+            assert response["type"] == "response"
+
+        # Context manager automatically closes the connection
+        # If we get here without errors, disconnect was handled gracefully
