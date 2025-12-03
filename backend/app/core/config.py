@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     # OpenRouter API
     openrouter_api_key: str = ""
-    llm_model: str = "anthropic/claude-3.5-sonnet"
+    llm_model: str = "meta-llama/llama-3.2-3b-instruct:free"  # Free tier for local dev
     llm_timeout: float = 60.0
 
     model_config = SettingsConfigDict(
