@@ -127,9 +127,11 @@ class OpenRouterClient:
 
                 # Handle rate limiting with exponential backoff
                 if response.status_code == 429:
-                    if await self._should_retry(attempt, "Rate limit hit"):
+                    error_detail = response.text
+                    logger.warning(f"Rate limit (429) response: {error_detail}")
+                    if await self._should_retry(attempt, f"Rate limit hit: {error_detail}"):
                         continue
-                    raise LLMRateLimitError("Rate limit exceeded after all retries")
+                    raise LLMRateLimitError(f"Rate limit exceeded: {error_detail}")
 
                 # Handle other HTTP errors
                 if not response.is_success:
