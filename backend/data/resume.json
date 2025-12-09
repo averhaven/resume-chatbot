@@ -1,0 +1,92 @@
+{
+  "name": "Alexandra Smith",
+  "title": "Senior Software Engineer",
+  "contact": {
+    "email": "alexandra@example.com",
+    "phone": "+1 (555) 123-4567",
+    "location": "San Francisco, CA",
+    "linkedin": "linkedin.com/in/alexandrasmith",
+    "github": "github.com/alexandrasmith"
+  },
+  "summary": "Experienced software engineer with 8+ years of expertise in full-stack development, cloud architecture, and building scalable systems. Passionate about creating elegant solutions to complex problems and mentoring junior developers.",
+  "experience": [
+    {
+      "title": "Senior Software Engineer",
+      "company": "TechCorp Inc.",
+      "location": "San Francisco, CA",
+      "start_date": "2021-03",
+      "end_date": null,
+      "current": true,
+      "responsibilities": [
+        "Led development of microservices architecture serving 10M+ daily users",
+        "Designed and implemented real-time data processing pipeline using Kafka and Python",
+        "Mentored team of 5 junior engineers and conducted code reviews",
+        "Reduced API response time by 40% through optimization and caching strategies"
+      ]
+    },
+    {
+      "title": "Software Engineer",
+      "company": "StartupXYZ",
+      "location": "San Francisco, CA",
+      "start_date": "2018-06",
+      "end_date": "2021-02",
+      "current": false,
+      "responsibilities": [
+        "Built RESTful APIs using Python, FastAPI, and PostgreSQL",
+        "Implemented CI/CD pipelines using GitHub Actions and Docker",
+        "Developed front-end features using React and TypeScript",
+        "Collaborated with product team to design and ship new features"
+      ]
+    },
+    {
+      "title": "Junior Developer",
+      "company": "Digital Agency Co.",
+      "location": "New York, NY",
+      "start_date": "2016-08",
+      "end_date": "2018-05",
+      "current": false,
+      "responsibilities": [
+        "Developed client websites using Django and JavaScript",
+        "Worked with designers to implement responsive UI components",
+        "Maintained and debugged legacy codebases"
+      ]
+    }
+  ],
+  "skills": {
+    "languages": ["Python", "JavaScript", "TypeScript", "SQL", "Go"],
+    "frameworks": ["FastAPI", "Django", "React", "Next.js", "Flask"],
+    "databases": ["PostgreSQL", "MongoDB", "Redis"],
+    "tools": ["Docker", "Kubernetes", "AWS", "Git", "GitHub Actions"],
+    "other": ["Microservices", "REST APIs", "WebSockets", "System Design", "Agile/Scrum"]
+  },
+  "education": [
+    {
+      "degree": "Bachelor of Science in Computer Science",
+      "institution": "University of California, Berkeley",
+      "location": "Berkeley, CA",
+      "graduation_date": "2016-05",
+      "gpa": "3.8/4.0"
+    }
+  ],
+  "projects": [
+    {
+      "name": "Open Source Contribution - FastAPI Plugins",
+      "description": "Contributed authentication middleware and WebSocket utilities to popular FastAPI ecosystem",
+      "technologies": ["Python", "FastAPI", "OAuth2"],
+      "url": "github.com/fastapi/fastapi-plugins"
+    },
+    {
+      "name": "Personal Project - Task Management API",
+      "description": "Built scalable task management API with real-time updates using WebSockets",
+      "technologies": ["Python", "FastAPI", "PostgreSQL", "Redis", "WebSockets"],
+      "url": "github.com/alexandrasmith/task-api"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "AWS Certified Solutions Architect - Associate",
+      "issuer": "Amazon Web Services",
+      "date": "2022-08"
+    }
+  ]
+}
