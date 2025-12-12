@@ -5,7 +5,12 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
-client = TestClient(app)
+
+@pytest.fixture
+def test_client():
+    """Create a test client."""
+    with TestClient(app) as client:
+        yield client
 
 
 @pytest.fixture
@@ -18,20 +23,20 @@ def mock_llm_client():
     return mock_client
 
 
-def test_websocket_connection(mock_llm_client):
+def test_websocket_connection(test_client, mock_llm_client):
     """Test that a client can successfully connect to the WebSocket endpoint"""
     with patch("app.main.create_llm_client", return_value=mock_llm_client):
-        with client.websocket_connect("/ws") as websocket:
+        with test_client.websocket_connect("/ws") as websocket:
             # Should receive welcome message
             welcome = websocket.receive_json()
             assert welcome["type"] == "system"
             assert "Connected" in welcome["message"]
 
 
-def test_websocket_basic_chat(mock_llm_client):
+def test_websocket_basic_chat(test_client, mock_llm_client):
     """Test basic chat functionality via WebSocket"""
     with patch("app.main.create_llm_client", return_value=mock_llm_client):
-        with client.websocket_connect("/ws") as websocket:
+        with test_client.websocket_connect("/ws") as websocket:
             # Receive welcome message
             welcome = websocket.receive_json()
             assert welcome["type"] == "system"
@@ -47,13 +52,13 @@ def test_websocket_basic_chat(mock_llm_client):
             assert response["response"] == "Mock LLM response"
 
 
-def test_websocket_multiple_messages(mock_llm_client):
+def test_websocket_multiple_messages(test_client, mock_llm_client):
     """Test sending multiple messages in sequence"""
     responses = ["Response 1", "Response 2", "Response 3"]
     mock_llm_client.call_llm = AsyncMock(side_effect=responses)
 
     with patch("app.main.create_llm_client", return_value=mock_llm_client):
-        with client.websocket_connect("/ws") as websocket:
+        with test_client.websocket_connect("/ws") as websocket:
             # Receive welcome message
             welcome = websocket.receive_json()
             assert welcome["type"] == "system"
@@ -67,10 +72,10 @@ def test_websocket_multiple_messages(mock_llm_client):
                 assert response["response"] == responses[i]
 
 
-def test_websocket_invalid_json_structure(mock_llm_client):
+def test_websocket_invalid_json_structure(test_client, mock_llm_client):
     """Test that invalid message structure is handled gracefully"""
     with patch("app.main.create_llm_client", return_value=mock_llm_client):
-        with client.websocket_connect("/ws") as websocket:
+        with test_client.websocket_connect("/ws") as websocket:
             # Receive welcome message
             welcome = websocket.receive_json()
             assert welcome["type"] == "system"
@@ -86,10 +91,10 @@ def test_websocket_invalid_json_structure(mock_llm_client):
             assert response["code"] == "VALIDATION_ERROR"
 
 
-def test_websocket_disconnect(mock_llm_client):
+def test_websocket_disconnect(test_client, mock_llm_client):
     """Test that WebSocket disconnection is handled gracefully"""
     with patch("app.main.create_llm_client", return_value=mock_llm_client):
-        with client.websocket_connect("/ws") as websocket:
+        with test_client.websocket_connect("/ws") as websocket:
             # Receive welcome message
             welcome = websocket.receive_json()
             assert welcome["type"] == "system"
