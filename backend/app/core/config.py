@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     llm_model: str = "meta-llama/llama-3.2-3b-instruct:free"  # Free tier for local dev
     llm_timeout: float = 60.0
 
+    # Database Configuration
+    database_url: str = (
+        "postgresql+asyncpg://chatbot:chatbot_dev_password@localhost:5432/resume_chatbot"
+    )
+    database_echo: bool = False  # Log SQL queries (set to True for debugging)
+    database_pool_size: int = 5
+    database_max_overflow: int = 10
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
