@@ -1,6 +1,5 @@
 """Tests for prompt building service."""
 
-import pytest
 
 from app.services.prompts import build_initial_prompt, build_prompt, build_system_prompt
 

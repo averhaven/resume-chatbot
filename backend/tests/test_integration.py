@@ -1,11 +1,12 @@
 """Integration tests for end-to-end chat functionality."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services.llm_client import LLMAPIError, LLMRateLimitError
 
 
 @pytest.fixture
@@ -72,9 +73,7 @@ class TestEndToEndChat:
 
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
-                # Clear conversation state before test
-                app.state.conversation_manager.clear()
-
+                # Note: Each WebSocket connection gets its own conversation manager
                 with client.websocket_connect("/ws") as websocket:
                     # Receive welcome message
                     welcome = websocket.receive_json()
@@ -127,8 +126,6 @@ class TestEndToEndChat:
 
     def test_llm_api_error_handling(self, mock_llm_client):
         """Test that LLM API errors are handled gracefully."""
-        from app.services.llm_client import LLMAPIError
-
         mock_llm_client.call_llm = AsyncMock(side_effect=LLMAPIError("API Error"))
 
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
@@ -149,8 +146,6 @@ class TestEndToEndChat:
 
     def test_llm_rate_limit_error_handling(self, mock_llm_client):
         """Test that rate limit errors are handled gracefully."""
-        from app.services.llm_client import LLMRateLimitError
-
         mock_llm_client.call_llm = AsyncMock(side_effect=LLMRateLimitError("Rate limit exceeded"))
 
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
@@ -169,46 +164,65 @@ class TestEndToEndChat:
                     assert response["code"] == "RATE_LIMIT"
                     assert "Rate limit" in response["error"]
 
-    def test_conversation_persists_across_messages(self, mock_llm_client):
-        """Test that conversation history persists across multiple messages."""
+    def test_conversation_persists_within_session(self, mock_llm_client):
+        """Test that conversation history persists within a WebSocket session."""
         responses = ["Response 1", "Response 2"]
         mock_llm_client.call_llm = AsyncMock(side_effect=responses)
 
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
-                app.state.conversation_manager.clear()  # Start with clean state
-
+                # Single connection with multiple messages
                 with client.websocket_connect("/ws") as websocket:
                     welcome = websocket.receive_json()
+                    assert welcome["type"] == "system"
 
                     # Send first question
                     websocket.send_json({"type": "question", "question": "Question 1"})
-                    response = websocket.receive_json()
-
-                    # Conversation should have 2 messages (user + assistant)
-                    assert app.state.conversation_manager.get_message_count() == 2
+                    response1 = websocket.receive_json()
+                    assert response1["type"] == "response"
+                    assert response1["response"] == "Response 1"
 
                     # Send second question
                     websocket.send_json({"type": "question", "question": "Question 2"})
-                    response = websocket.receive_json()
+                    response2 = websocket.receive_json()
+                    assert response2["type"] == "response"
+                    assert response2["response"] == "Response 2"
 
-                    # Conversation should have 4 messages now
-                    assert app.state.conversation_manager.get_message_count() == 4
+                    # Verify conversation history was passed to LLM
+                    # The second call should include the first question and response
+                    assert mock_llm_client.call_llm.call_count == 2
+                    second_call_messages = mock_llm_client.call_llm.call_args_list[1][0][0]
+                    user_messages = [msg for msg in second_call_messages if msg["role"] == "user"]
+                    # Should have both questions in history
+                    assert len(user_messages) == 2
 
-    def test_single_user_shared_conversation(self, mock_llm_client):
-        """Test that all connections share the same conversation (single-user design)."""
+    def test_sessions_are_isolated(self, mock_llm_client):
+        """Test that different WebSocket sessions have isolated conversations."""
         responses = ["Response 1", "Response 2"]
         mock_llm_client.call_llm = AsyncMock(side_effect=responses)
 
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
-                app.state.conversation_manager.clear()  # Start with clean state
-
-                # First connection adds a message
+                # First connection sends a message
                 with client.websocket_connect("/ws") as ws1:
-                    welcome1 = ws1.receive_json()
-                    ws1.send_json({"type": "question", "question": "Question from connection 1"})
+                    ws1.receive_json()  # welcome message
+                    ws1.send_json({"type": "question", "question": "Question from session 1"})
                     response1 = ws1.receive_json()
+                    assert response1["response"] == "Response 1"
 
-                # Second connection should see the history from first connection
-                assert app.state.conversation_manager.get_message_count() == 2  # user + assistant
+                # Reset mock for second connection
+                mock_llm_client.call_llm = AsyncMock(return_value="Response from session 2")
+
+                # Second connection should have clean conversation (no history from first)
+                with client.websocket_connect("/ws") as ws2:
+                    ws2.receive_json()  # welcome message
+                    ws2.send_json({"type": "question", "question": "Question from session 2"})
+                    response2 = ws2.receive_json()
+                    assert response2["response"] == "Response from session 2"
+
+                    # Verify the second connection only saw its own message
+                    second_session_call = mock_llm_client.call_llm.call_args_list[-1][0][0]
+                    user_messages = [msg for msg in second_session_call if msg["role"] == "user"]
+                    # Should only have one question (the new one, not from first session)
+                    assert len(user_messages) == 1
+                    assert user_messages[0]["content"] == "Question from session 2"
