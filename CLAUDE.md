@@ -93,11 +93,11 @@ backend/
 - **OpenRouter Client**: Direct HTTP API calls using httpx (no LangChain, no embeddings)
 - **Conversation Flow**:
   1. User sends message via WebSocket
-  2. Add to in-memory conversation state (per session)
+  2. Add to database conversation state (per session)
   3. Build prompt: system message + full resume + conversation history + new question
   4. Call OpenRouter API with formatted messages
   5. Stream or send complete response back via WebSocket
-  6. Add assistant response to conversation state
+  6. Add assistant response to conversation state and commit transaction
 - **Prompt Format**: OpenAI-compatible message format (system/user/assistant roles)
 
 ### Database Architecture (Phase 2)
@@ -139,7 +139,7 @@ backend/
 - Handle rate limits gracefully (return user-friendly errors)
 - Format prompts in OpenAI-compatible message format
 - Keep resume text in memory (loaded once at startup)
-- Manage conversation state per WebSocket session (in-memory dict)
+- Manage conversation state per WebSocket session (PostgreSQL database with DatabaseConversationManager)
 - Add timeout handling for LLM API calls (prevent hanging connections)
 
 ## API Documentation
