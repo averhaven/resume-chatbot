@@ -4,9 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a production-ready resume chatbot backend using direct LLM API calls with real-time WebSocket communication. The chatbot sends the full resume context along with conversation history to an LLM on each request. The project is being built in phases (see PROJECT_PLAN.md) and is currently in Phase 1 (Backend Core & LLM Integration).
+This is a production-ready resume chatbot backend using direct LLM API calls with real-time WebSocket communication. The chatbot sends the full resume context along with conversation history to an LLM on each request. The project is being built in phases (see PROJECT_PLAN.md).
 
-**Current Status**: Phase 1B completed (WebSocket basics). Next steps are Phase 1C (Resume Data & OpenRouter Setup) and Phase 1D (Conversation Management & Integration).
+**Current Status**:
+- ✅ **Phase 1 COMPLETE**: Backend Core & LLM Integration
+- ✅ **Phase 2 COMPLETE**: Database Persistence
+- 🚧 **Phase 3 IN PROGRESS**: Production Features
+
+All core functionality is implemented with 117 passing tests. The system features full end-to-end chat with resume context, PostgreSQL persistence, and session resumption capabilities.
 
 ## Technology Stack
 
@@ -26,6 +31,9 @@ This is a production-ready resume chatbot backend using direct LLM API calls wit
 # Install/sync dependencies
 cd backend && uv sync
 
+# Start PostgreSQL database (Docker)
+docker-compose up -d
+
 # Run development server with auto-reload
 cd backend && uv run uvicorn app.main:app --reload
 
@@ -37,12 +45,32 @@ cd backend && uv run pytest -v
 
 # Run specific test file
 cd backend && uv run pytest tests/test_websocket.py -v
+
+# Stop database
+docker-compose down
+```
+
+### Database Management
+
+```bash
+# Run Alembic migrations
+cd backend && uv run alembic upgrade head
+
+# Create a new migration
+cd backend && uv run alembic revision --autogenerate -m "description"
+
+# Check current migration version
+cd backend && uv run alembic current
+
+# View migration history
+cd backend && uv run alembic history
 ```
 
 ### Configuration
 
 - Environment variables are in `backend/.env` (copy from `backend/.env.example`)
 - Settings are managed via Pydantic Settings in `app/core/config.py`
+- Database runs via Docker (see `docker-compose.yml`)
 
 ## Project Structure
 
@@ -151,11 +179,23 @@ When the server is running, interactive API docs are available at:
 ## Project Roadmap Context
 
 This project follows a 4-phase development plan (see PROJECT_PLAN.md):
-1. **Phase 1** (Current): Backend Core & LLM Integration - FastAPI, WebSocket, resume loading, OpenRouter API, conversation management
-2. **Phase 2**: Database Persistence - PostgreSQL (Docker), SQLAlchemy async, Alembic migrations, conversation storage
-3. **Phase 3**: Production Features - Rate limiting, token management, error handling, comprehensive documentation
-4. **Phase 4**: Polish & Testing - Code documentation, architecture diagrams, integration tests, CI/CD
+1. ✅ **Phase 1 COMPLETE**: Backend Core & LLM Integration - FastAPI, WebSocket, resume loading, OpenRouter API, conversation management
+2. ✅ **Phase 2 COMPLETE**: Database Persistence - PostgreSQL (Docker), SQLAlchemy async, Alembic migrations, conversation storage
+3. 🚧 **Phase 3 IN PROGRESS**: Production Features - Rate limiting, token management, error handling, comprehensive documentation
+4. ⏳ **Phase 4 PENDING**: Polish & Testing - Code documentation, architecture diagrams, integration tests, CI/CD
 
-**Current Phase**: Phase 1 (1A ✅, 1B ✅, 1C and 1D next)
+**Current Phase**: Phase 3 (Production Features)
 
-Each phase has specific deliverables. Always check PROJECT_PLAN.md and PHASE_1_PLAN.md for current objectives.
+**What's Working:**
+- Full end-to-end chat flow with LLM responses
+- Resume context injection into prompts
+- PostgreSQL-backed conversation persistence
+- Session resumption by session_id
+- Comprehensive error handling for LLM API failures
+- 117 tests passing
+
+**Next Focus Areas:**
+- Rate limiting and API abuse prevention
+- Token counting and context window management
+- Enhanced health checks with database connectivity
+- Production-ready documentation
