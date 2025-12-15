@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from app.core.config import get_settings, validate_settings
+from app.core.context import set_session_id
 from app.core.logger import get_logger, setup_logging
 from app.db.session import DatabaseManager
 from app.models.websocket import (
@@ -500,6 +501,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = None
             conversation_manager = DatabaseConversationManager(db_session, session_id)
             # Get the actual session_id (generated if not provided)
             actual_session_id = conversation_manager.session_id
+            # Set session_id in context for logging
+            set_session_id(actual_session_id)
             logger.info(f"Session established: {actual_session_id}")
 
             async with create_llm_client() as llm_client:
