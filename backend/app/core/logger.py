@@ -2,6 +2,23 @@ import logging
 import sys
 
 from app.core.config import Settings, get_settings
+from app.core.context import get_session_id
+
+
+class ContextFormatter(logging.Formatter):
+    """Custom formatter that includes session ID from context."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format log record with context variables.
+
+        Args:
+            record: The log record to format
+
+        Returns:
+            Formatted log string with session_id
+        """
+        record.session_id = get_session_id()
+        return super().format(record)
 
 
 def setup_logging(config: Settings | None = None) -> None:
@@ -25,8 +42,8 @@ def setup_logging(config: Settings | None = None) -> None:
     # Create and configure handler
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(log_level)
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    formatter = ContextFormatter(
+        "%(asctime)s - %(name)s - %(levelname)s - [%(session_id)s] %(message)s"
     )
     handler.setFormatter(formatter)
     root_logger.addHandler(handler)
