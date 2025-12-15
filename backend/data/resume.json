@@ -1,92 +1,117 @@
 {
-  "name": "Alexandra Smith",
-  "title": "Senior Software Engineer",
+  "name": "Alexandra Verhaven",
+  "title": "Software Developer",
   "contact": {
-    "email": "alexandra@example.com",
-    "phone": "+1 (555) 123-4567",
-    "location": "San Francisco, CA",
-    "linkedin": "linkedin.com/in/alexandrasmith",
-    "github": "github.com/alexandrasmith"
+    "email": "alexa_verhaven@hotmail.com",
+    "location": "Berlin, Germany",
+    "github": "github.com/averhaven"
   },
-  "summary": "Experienced software engineer with 8+ years of expertise in full-stack development, cloud architecture, and building scalable systems. Passionate about creating elegant solutions to complex problems and mentoring junior developers.",
+  "summary": "Software Developer with 3+ years of experience in Python development, specializing in network automation and enterprise platform development. Background in chemistry research with PhD, bringing analytical problem-solving skills to software engineering.",
   "experience": [
     {
-      "title": "Senior Software Engineer",
-      "company": "TechCorp Inc.",
-      "location": "San Francisco, CA",
-      "start_date": "2021-03",
-      "end_date": null,
-      "current": true,
-      "responsibilities": [
-        "Led development of microservices architecture serving 10M+ daily users",
-        "Designed and implemented real-time data processing pipeline using Kafka and Python",
-        "Mentored team of 5 junior engineers and conducted code reviews",
-        "Reduced API response time by 40% through optimization and caching strategies"
-      ]
-    },
-    {
-      "title": "Software Engineer",
-      "company": "StartupXYZ",
-      "location": "San Francisco, CA",
-      "start_date": "2018-06",
-      "end_date": "2021-02",
+      "title": "Software Engineer (Level 6) - Network Automation",
+      "company": "DB Systel",
+      "location": "Berlin, Germany",
+      "start_date": "2024-10",
+      "end_date": "2025-09",
       "current": false,
       "responsibilities": [
-        "Built RESTful APIs using Python, FastAPI, and PostgreSQL",
-        "Implemented CI/CD pipelines using GitHub Actions and Docker",
-        "Developed front-end features using React and TypeScript",
-        "Collaborated with product team to design and ship new features"
-      ]
+        "Python developer on enterprise-wide network automation platform (Nautobot-based) serving as single source of truth for DB's network connectivity services, maintaining and enhancing existing Django apps for data synchronization that manage 20,000+ network devices",
+        "Designed VLAN automation system that eliminates manual network diagram consultation, implementing intelligent VLAN ID selection logic for complex network topology scenarios",
+        "Improved data consistency by resolving data synchronization bugs in live device integration systems, ensuring reliable nightly sync operations between physical devices and platform database",
+        "Contributed to operational excellence during weekly 'medic' rotations, providing technical support for the Nautobot platform to network engineers while mentoring through code reviews",
+        "Drove successful Nautobot platform upgrade from 1.6 to 2.x by refactoring code and adapting to API and model changes using AI-assisted tools",
+        "Enhanced network data model architecture by implementing circuit-based representation for 1,000+ network devices, collaborating with network engineering teams to analyze requirements and modify existing Django-based synchronization systems"
+      ],
+      "tech_stack": ["Python", "Django", "PostgreSQL", "AWS", "Redis", "Celery", "GitLab CI/CD", "Kubernetes", "Grafana", "Prometheus", "Nautobot"]
     },
     {
-      "title": "Junior Developer",
-      "company": "Digital Agency Co.",
-      "location": "New York, NY",
-      "start_date": "2016-08",
-      "end_date": "2018-05",
+      "title": "Software Engineer (Level 4-5) - Network Configuration",
+      "company": "DB Systel",
+      "location": "Berlin, Germany",
+      "start_date": "2022-10",
+      "end_date": "2024-10",
       "current": false,
       "responsibilities": [
-        "Developed client websites using Django and JavaScript",
-        "Worked with designers to implement responsive UI components",
-        "Maintained and debugged legacy codebases"
+        "Built automation tools to support network engineering operations for DB's network connectivity services",
+        "Designed and implemented a solution to monitor network configurations of 900 devices over 300 locations at a weekly cadence, ensuring comprehensive monitoring of service quality",
+        "Developed a custom driver using the netmiko library to automate device configuration, reducing manual configuration efforts for approximately 800 devices",
+        "Improved automation of network device configuration by developing custom CLI scripts that eliminated manual processes, drastically reducing operational overhead and deployment time"
+      ],
+      "tech_stack": ["Python", "Cisco", "Kubernetes", "Nornir", "Netmiko"]
+    },
+    {
+      "title": "Scientist - Management of Regulatory Data",
+      "company": "BASF",
+      "location": "Berlin, Germany",
+      "start_date": "2020-10",
+      "end_date": "2021-12",
+      "current": false,
+      "responsibilities": [
+        "Managed regulatory data for chemical products"
       ]
     }
   ],
   "skills": {
-    "languages": ["Python", "JavaScript", "TypeScript", "SQL", "Go"],
-    "frameworks": ["FastAPI", "Django", "React", "Next.js", "Flask"],
-    "databases": ["PostgreSQL", "MongoDB", "Redis"],
-    "tools": ["Docker", "Kubernetes", "AWS", "Git", "GitHub Actions"],
-    "other": ["Microservices", "REST APIs", "WebSockets", "System Design", "Agile/Scrum"]
+    "languages": ["Python"],
+    "frameworks": ["Django", "Pytest", "Poetry", "Nautobot", "Nornir"],
+    "databases": ["PostgreSQL", "Redis"],
+    "tools": ["GitLab CI/CD", "Docker", "Kubernetes"],
+    "cloud": ["AWS"],
+    "other": ["Network Automation", "Netmiko", "Celery", "Grafana", "Prometheus"]
   },
   "education": [
     {
-      "degree": "Bachelor of Science in Computer Science",
-      "institution": "University of California, Berkeley",
-      "location": "Berkeley, CA",
-      "graduation_date": "2016-05",
-      "gpa": "3.8/4.0"
+      "degree": "PhD in Chemistry",
+      "institution": "Université libre de Bruxelles | University of British Columbia",
+      "location": "Brussels, Belgium / Vancouver, Canada",
+      "graduation_date": "2020-12"
+    },
+    {
+      "degree": "Master in Chemistry",
+      "institution": "Université libre de Bruxelles",
+      "location": "Brussels, Belgium",
+      "graduation_date": "2015-06"
+    },
+    {
+      "degree": "Bachelor in Chemistry",
+      "institution": "Vrije Universiteit Brussel",
+      "location": "Brussels, Belgium",
+      "graduation_date": "2013-07"
     }
   ],
   "projects": [
     {
-      "name": "Open Source Contribution - FastAPI Plugins",
-      "description": "Contributed authentication middleware and WebSocket utilities to popular FastAPI ecosystem",
-      "technologies": ["Python", "FastAPI", "OAuth2"],
-      "url": "github.com/fastapi/fastapi-plugins"
+      "name": "Resume Chatbot",
+      "description": "Real-time conversational AI backend that answers questions about resumes using LLM integration and WebSocket communication. Features full context injection, session persistence, exponential backoff retry logic, and 135+ passing tests.",
+      "technologies": ["Python", "FastAPI", "PostgreSQL", "SQLAlchemy", "WebSocket", "OpenRouter API", "Alembic", "httpx"],
+      "url": "github.com/averhaven/resume-chatbot"
     },
     {
-      "name": "Personal Project - Task Management API",
-      "description": "Built scalable task management API with real-time updates using WebSockets",
-      "technologies": ["Python", "FastAPI", "PostgreSQL", "Redis", "WebSockets"],
-      "url": "github.com/alexandrasmith/task-api"
+      "name": "Cocktail App",
+      "description": "REST API to manage cocktail recipes with a cocktail recipe scraper",
+      "technologies": ["Python", "FastAPI", "MongoDB", "Beautiful Soup"],
+      "url": "github.com/averhaven/cocktail-app"
+    },
+    {
+      "name": "Resto App",
+      "description": "Web app that recommends restaurants using Google Maps API with CI pipeline",
+      "technologies": ["Python", "Flask", "Google Maps API", "GitHub Actions", "Docker"],
+      "url": "github.com/averhaven/resto_app"
     }
   ],
   "certifications": [
     {
-      "name": "AWS Certified Solutions Architect - Associate",
-      "issuer": "Amazon Web Services",
-      "date": "2022-08"
+      "name": "AWS Certified Solutions Architect",
+      "issuer": "A Cloud Guru"
+    },
+    {
+      "name": "Certified Kubernetes Application Developer (CKAD)",
+      "issuer": "A Cloud Guru"
+    },
+    {
+      "name": "HashiCorp Certified Terraform Associate",
+      "issuer": "A Cloud Guru"
     }
   ]
 }
