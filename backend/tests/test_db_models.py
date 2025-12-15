@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.db.models import Conversation, Message
 
@@ -69,8 +70,8 @@ class TestConversationModel:
         conversation2 = Conversation(session_id=session_id)
         db_session.add(conversation2)
 
-        # Should raise IntegrityError
-        with pytest.raises(Exception):  # SQLite raises IntegrityError
+        # Should raise IntegrityError due to unique constraint violation
+        with pytest.raises(IntegrityError):
             await db_session.commit()
 
     @pytest.mark.asyncio
@@ -277,18 +278,13 @@ class TestConversationMessageRelationship:
         await db_session.commit()
         await db_session.refresh(conversation)
 
-        message = Message(
-            conversation_id=conversation.id, role="user", content="Test"
-        )
+        message = Message(conversation_id=conversation.id, role="user", content="Test")
         db_session.add(message)
         await db_session.commit()
         await db_session.refresh(message)
 
         # Load the conversation through the relationship
-        stmt = (
-            select(Message)
-            .where(Message.id == message.id)
-        )
+        stmt = select(Message).where(Message.id == message.id)
         result = await db_session.execute(stmt)
         msg = result.scalar_one()
 

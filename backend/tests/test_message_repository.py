@@ -83,7 +83,9 @@ class TestMessageRepository:
         assert all(m.conversation_id == conversation.id for m in messages)
 
     @pytest.mark.asyncio
-    async def test_get_conversation_messages_empty(self, repo, conversation, db_session):
+    async def test_get_conversation_messages_empty(
+        self, repo, conversation, db_session
+    ):
         """Test getting messages for conversation with no messages."""
         messages = await repo.get_conversation_messages(conversation.id)
 
@@ -112,7 +114,9 @@ class TestMessageRepository:
         assert all(m.conversation_id == conversation.id for m in messages)
 
     @pytest.mark.asyncio
-    async def test_get_conversation_messages_ordered(self, repo, conversation, db_session):
+    async def test_get_conversation_messages_ordered(
+        self, repo, conversation, db_session
+    ):
         """Test that messages are ordered by created_at."""
         # Add messages in order
         await repo.add_message(

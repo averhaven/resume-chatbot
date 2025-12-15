@@ -67,7 +67,7 @@ class DatabaseManager:
             logger.info("Database closed")
 
     @asynccontextmanager
-    async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
+    async def get_session(self) -> AsyncGenerator[AsyncSession]:
         """Get database session (context manager).
 
         Usage:

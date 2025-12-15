@@ -23,3 +23,81 @@ dev = [
     "pytest-asyncio>=1.3.0",
     "ruff>=0.14.8",
 ]
+
+[tool.ruff]
+# Line length to match common Python standards
+line-length = 88
+indent-width = 4
+
+# Target Python 3.13
+target-version = "py313"
+
+# Exclude common directories
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    ".pytest_cache",
+    "alembic/versions",
+    "*.egg-info",
+]
+
+[tool.ruff.lint]
+# Enable recommended rule sets
+select = [
+    "E",      # pycodestyle errors
+    "F",      # Pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # isort (import sorting)
+    "N",      # pep8-naming
+    "UP",     # pyupgrade (modernize Python code)
+    "B",      # flake8-bugbear (find likely bugs)
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "PTH",    # flake8-use-pathlib
+    "RUF",    # Ruff-specific rules
+    "ASYNC",  # flake8-async (important for FastAPI)
+    "PL",     # Pylint (comprehensive checks)
+]
+
+# Ignore specific rules that are too strict or conflict
+ignore = [
+    "E501",     # Line too long (let formatter handle it)
+    "N805",     # First argument should be named `self` (conflicts with pydantic validators)
+    "PLR0913",  # Too many arguments to function
+    "PLR2004",  # Magic value used in comparison
+]
+
+# Allow autofix for all enabled rules
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, relative imports
+"tests/**/*.py" = [
+    "S101",     # Allow asserts in tests
+    "PLR2004",  # Allow magic values in tests
+    "PLR0915",  # Too many statements
+    "SIM117",   # Allow nested with statements in tests (more readable)
+]
+
+# Alembic migration files can have specific patterns
+"alembic/versions/*.py" = ["ALL"]
+
+[tool.ruff.lint.isort]
+# Organize imports
+known-first-party = ["app"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+
+# Indent with spaces
+indent-style = "space"
+
+# Like Black, respect magic trailing commas
+skip-magic-trailing-comma = false
+
+# Auto-detect line endings
+line-ending = "auto"

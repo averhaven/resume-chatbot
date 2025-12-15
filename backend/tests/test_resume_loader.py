@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 
 from app.services.resume_loader import (
-    ResumeLoadError,
     ResumeLoader,
+    ResumeLoadError,
     create_resume_loader,
 )
 
@@ -53,7 +53,7 @@ def sample_resume_data():
 @pytest.fixture
 def temp_resume_file(sample_resume_data):
     """Create a temporary resume JSON file."""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(sample_resume_data, f)
         temp_path = Path(f.name)
 
@@ -67,7 +67,7 @@ def temp_resume_file(sample_resume_data):
 @pytest.fixture
 def invalid_json_file():
     """Create a temporary file with invalid JSON."""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         f.write("{ invalid json content")
         temp_path = Path(f.name)
 
@@ -185,7 +185,7 @@ def test_format_resume_handles_optional_fields():
         "title": "Developer",
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(minimal_data, f)
         temp_path = Path(f.name)
 
@@ -240,7 +240,7 @@ def test_resume_with_projects_and_certifications():
         ],
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(data, f)
         temp_path = Path(f.name)
 

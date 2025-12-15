@@ -74,7 +74,9 @@ class MessageRepository:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_recent_messages(self, conversation_id: UUID, limit: int) -> list[Message]:
+    async def get_recent_messages(
+        self, conversation_id: UUID, limit: int
+    ) -> list[Message]:
         """Get the N most recent messages for a conversation.
 
         Args:

@@ -8,10 +8,12 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
-
 from app.core.config import get_settings
 from app.db.base import Base
-from app.db.models import Conversation, Message  # Import all models
+from app.db.models import (  # noqa: F401 - Import all models for Alembic autogenerate
+    Conversation,
+    Message,
+)
 
 # Alembic Config object
 config = context.config

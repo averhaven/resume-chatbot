@@ -13,16 +13,19 @@ logger = get_logger(__name__)
 
 class LLMError(Exception):
     """Base exception for LLM client errors."""
+
     pass
 
 
 class LLMRateLimitError(Exception):
     """Raised when rate limit is exceeded."""
+
     pass
 
 
 class LLMAPIError(Exception):
     """Raised when API returns an error."""
+
     pass
 
 
@@ -83,7 +86,7 @@ class OpenRouterClient:
             True if should retry, False if retries exhausted
         """
         if attempt < self.max_retries - 1:
-            backoff_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+            backoff_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
             logger.warning(
                 f"{error_msg}, retrying in {backoff_time}s "
                 f"(attempt {attempt + 1}/{self.max_retries})"
@@ -129,7 +132,9 @@ class OpenRouterClient:
                 if response.status_code == 429:
                     error_detail = response.text
                     logger.warning(f"Rate limit (429) response: {error_detail}")
-                    if await self._should_retry(attempt, f"Rate limit hit: {error_detail}"):
+                    if await self._should_retry(
+                        attempt, f"Rate limit hit: {error_detail}"
+                    ):
                         continue
                     raise LLMRateLimitError(f"Rate limit exceeded: {error_detail}")
 
@@ -137,23 +142,27 @@ class OpenRouterClient:
                 if not response.is_success:
                     error_detail = response.text
                     logger.error(f"API error {response.status_code}: {error_detail}")
-                    raise LLMAPIError(f"API returned status {response.status_code}: {error_detail}")
+                    raise LLMAPIError(
+                        f"API returned status {response.status_code}: {error_detail}"
+                    )
 
                 # Parse response
                 data = response.json()
                 content = self._extract_content(data)
-                logger.info(f"Successfully received LLM response ({len(content)} chars)")
+                logger.info(
+                    f"Successfully received LLM response ({len(content)} chars)"
+                )
                 return content
 
             except httpx.TimeoutException:
                 if await self._should_retry(attempt, "Request timeout"):
                     continue
-                raise LLMError("Request timed out after all retries")
+                raise LLMError("Request timed out after all retries") from None
 
             except httpx.RequestError as e:
                 if await self._should_retry(attempt, f"Network error: {e}"):
                     continue
-                raise LLMError(f"Network error after all retries: {e}")
+                raise LLMError(f"Network error after all retries: {e}") from e
 
             except (LLMRateLimitError, LLMAPIError):
                 # Re-raise our own exceptions without wrapping
@@ -161,7 +170,7 @@ class OpenRouterClient:
 
             except Exception as e:
                 logger.error(f"Unexpected error during LLM call: {e}")
-                raise LLMError(f"Unexpected error: {e}")
+                raise LLMError(f"Unexpected error: {e}") from e
 
         raise LLMError("Failed to get response after all retries")
 
@@ -191,7 +200,7 @@ class OpenRouterClient:
             return content
 
         except (KeyError, IndexError, TypeError) as e:
-            raise LLMAPIError(f"Invalid response format: {e}")
+            raise LLMAPIError(f"Invalid response format: {e}") from e
 
 
 def create_llm_client() -> OpenRouterClient:

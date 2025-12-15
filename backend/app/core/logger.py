@@ -12,8 +12,8 @@ def setup_logging(config: Settings | None = None) -> None:
     """
     cfg = config or get_settings()
 
-    # Determine log level based on debug setting
-    log_level = logging.DEBUG if cfg.debug else logging.INFO
+    # Determine log level from settings
+    log_level = getattr(logging, cfg.log_level.upper(), logging.INFO)
 
     # Get root logger
     root_logger = logging.getLogger()
