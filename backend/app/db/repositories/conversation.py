@@ -1,6 +1,6 @@
 """Repository for Conversation CRUD operations."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -88,7 +88,9 @@ class ConversationRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def list_conversations(self, limit: int = 50, offset: int = 0) -> list[Conversation]:
+    async def list_conversations(
+        self, limit: int = 50, offset: int = 0
+    ) -> list[Conversation]:
         """List conversations ordered by most recent.
 
         Args:
@@ -120,7 +122,7 @@ class ConversationRepository:
         stmt = (
             update(Conversation)
             .where(Conversation.id == conversation_id)
-            .values(updated_at=datetime.now(timezone.utc))
+            .values(updated_at=datetime.now(UTC))
         )
 
         result = await self.session.execute(stmt)

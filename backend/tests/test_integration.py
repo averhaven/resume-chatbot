@@ -13,7 +13,9 @@ from app.services.llm_client import LLMAPIError, LLMRateLimitError
 def mock_llm_client():
     """Create a mock LLM client that returns predefined responses."""
     mock_client = AsyncMock()
-    mock_client.call_llm = AsyncMock(return_value="This is a test response from the LLM.")
+    mock_client.call_llm = AsyncMock(
+        return_value="This is a test response from the LLM."
+    )
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=None)
     return mock_client
@@ -58,13 +60,17 @@ class TestEndToEndChat:
                     assert "Connected" in welcome["message"]
 
                     # Send a question
-                    websocket.send_json({"type": "question", "question": "What is your name?"})
+                    websocket.send_json(
+                        {"type": "question", "question": "What is your name?"}
+                    )
 
                     # Receive response
                     response = websocket.receive_json()
                     assert response["type"] == "response"
                     assert "response" in response
-                    assert response["response"] == "This is a test response from the LLM."
+                    assert (
+                        response["response"] == "This is a test response from the LLM."
+                    )
 
     def test_conversation_history_accumulation(self, mock_llm_client):
         """Test that conversation history accumulates across multiple messages."""
@@ -98,7 +104,9 @@ class TestEndToEndChat:
                     assert mock_llm_client.call_llm.call_count == 3
 
                     # Check that the last call included conversation history
-                    last_call_messages = mock_llm_client.call_llm.call_args_list[-1][0][0]
+                    last_call_messages = mock_llm_client.call_llm.call_args_list[-1][0][
+                        0
+                    ]
                     # Should have: system + q1 + a1 + q2 + a2 + q3
                     # System message is always first, then history alternates user/assistant
                     user_messages = [
@@ -136,7 +144,9 @@ class TestEndToEndChat:
                     assert welcome["type"] == "system"
 
                     # Send question
-                    websocket.send_json({"type": "question", "question": "Test question"})
+                    websocket.send_json(
+                        {"type": "question", "question": "Test question"}
+                    )
 
                     # Should receive error message
                     response = websocket.receive_json()
@@ -146,7 +156,9 @@ class TestEndToEndChat:
 
     def test_llm_rate_limit_error_handling(self, mock_llm_client):
         """Test that rate limit errors are handled gracefully."""
-        mock_llm_client.call_llm = AsyncMock(side_effect=LLMRateLimitError("Rate limit exceeded"))
+        mock_llm_client.call_llm = AsyncMock(
+            side_effect=LLMRateLimitError("Rate limit exceeded")
+        )
 
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
@@ -156,7 +168,9 @@ class TestEndToEndChat:
                     assert welcome["type"] == "system"
 
                     # Send question
-                    websocket.send_json({"type": "question", "question": "Test question"})
+                    websocket.send_json(
+                        {"type": "question", "question": "Test question"}
+                    )
 
                     # Should receive error message
                     response = websocket.receive_json()
@@ -191,8 +205,12 @@ class TestEndToEndChat:
                     # Verify conversation history was passed to LLM
                     # The second call should include the first question and response
                     assert mock_llm_client.call_llm.call_count == 2
-                    second_call_messages = mock_llm_client.call_llm.call_args_list[1][0][0]
-                    user_messages = [msg for msg in second_call_messages if msg["role"] == "user"]
+                    second_call_messages = mock_llm_client.call_llm.call_args_list[1][
+                        0
+                    ][0]
+                    user_messages = [
+                        msg for msg in second_call_messages if msg["role"] == "user"
+                    ]
                     # Should have both questions in history
                     assert len(user_messages) == 2
 
@@ -206,23 +224,33 @@ class TestEndToEndChat:
                 # First connection sends a message
                 with client.websocket_connect("/ws") as ws1:
                     ws1.receive_json()  # welcome message
-                    ws1.send_json({"type": "question", "question": "Question from session 1"})
+                    ws1.send_json(
+                        {"type": "question", "question": "Question from session 1"}
+                    )
                     response1 = ws1.receive_json()
                     assert response1["response"] == "Response 1"
 
                 # Reset mock for second connection
-                mock_llm_client.call_llm = AsyncMock(return_value="Response from session 2")
+                mock_llm_client.call_llm = AsyncMock(
+                    return_value="Response from session 2"
+                )
 
                 # Second connection should have clean conversation (no history from first)
                 with client.websocket_connect("/ws") as ws2:
                     ws2.receive_json()  # welcome message
-                    ws2.send_json({"type": "question", "question": "Question from session 2"})
+                    ws2.send_json(
+                        {"type": "question", "question": "Question from session 2"}
+                    )
                     response2 = ws2.receive_json()
                     assert response2["response"] == "Response from session 2"
 
                     # Verify the second connection only saw its own message
-                    second_session_call = mock_llm_client.call_llm.call_args_list[-1][0][0]
-                    user_messages = [msg for msg in second_session_call if msg["role"] == "user"]
+                    second_session_call = mock_llm_client.call_llm.call_args_list[-1][
+                        0
+                    ][0]
+                    user_messages = [
+                        msg for msg in second_session_call if msg["role"] == "user"
+                    ]
                     # Should only have one question (the new one, not from first session)
                     assert len(user_messages) == 1
                     assert user_messages[0]["content"] == "Question from session 2"

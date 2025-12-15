@@ -38,13 +38,13 @@ class ResumeLoader:
             raise ResumeLoadError(f"Resume file not found: {self.resume_path}")
 
         try:
-            with open(self.resume_path, "r", encoding="utf-8") as f:
+            with self.resume_path.open(encoding="utf-8") as f:
                 self._resume_data = json.load(f)
             logger.info(f"Successfully loaded resume from {self.resume_path}")
         except json.JSONDecodeError as e:
-            raise ResumeLoadError(f"Invalid JSON in resume file: {e}")
+            raise ResumeLoadError(f"Invalid JSON in resume file: {e}") from e
         except Exception as e:
-            raise ResumeLoadError(f"Failed to load resume: {e}")
+            raise ResumeLoadError(f"Failed to load resume: {e}") from e
 
         # Convert to text format
         self._resume_text = self._format_resume_as_text(self._resume_data)

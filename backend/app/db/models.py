@@ -1,7 +1,6 @@
 """SQLAlchemy ORM models for database tables."""
 
-from datetime import datetime, timezone
-from typing import List
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import (
@@ -27,7 +26,9 @@ class Conversation(Base):
     __tablename__ = "conversations"
 
     # Primary key
-    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
 
     # Session identifier (unique, indexed)
     session_id: Mapped[str] = mapped_column(
@@ -41,23 +42,23 @@ class Conversation(Base):
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         server_default=func.now(),
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         server_default=func.now(),
-        onupdate=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(UTC),
     )
 
     # Optional metadata (trailing underscore to avoid SQLAlchemy reserved word)
     metadata_: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Relationships
-    messages: Mapped[List["Message"]] = relationship(
+    messages: Mapped[list["Message"]] = relationship(
         "Message",
         back_populates="conversation",
         cascade="all, delete-orphan",
@@ -79,7 +80,9 @@ class Message(Base):
     __tablename__ = "messages"
 
     # Primary key
-    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
 
     # Foreign key to conversation
     conversation_id: Mapped[UUID] = mapped_column(
@@ -103,7 +106,7 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         server_default=func.now(),
         index=True,
     )

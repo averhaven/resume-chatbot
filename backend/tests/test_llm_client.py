@@ -94,7 +94,9 @@ async def test_successful_api_call(llm_client, sample_messages, success_response
     mock_response.json.return_value = success_response
 
     async with llm_client:
-        with patch.object(llm_client._client, 'post', new_callable=AsyncMock) as mock_post:
+        with patch.object(
+            llm_client._client, "post", new_callable=AsyncMock
+        ) as mock_post:
             mock_post.return_value = mock_response
 
             result = await llm_client.call_llm(sample_messages)
@@ -111,7 +113,9 @@ async def test_successful_api_call(llm_client, sample_messages, success_response
 
 
 @pytest.mark.asyncio
-async def test_api_call_with_custom_params(llm_client, sample_messages, success_response):
+async def test_api_call_with_custom_params(
+    llm_client, sample_messages, success_response
+):
     """Test API call with custom temperature and max_tokens."""
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -119,7 +123,9 @@ async def test_api_call_with_custom_params(llm_client, sample_messages, success_
     mock_response.json.return_value = success_response
 
     async with llm_client:
-        with patch.object(llm_client._client, 'post', new_callable=AsyncMock) as mock_post:
+        with patch.object(
+            llm_client._client, "post", new_callable=AsyncMock
+        ) as mock_post:
             mock_post.return_value = mock_response
 
             result = await llm_client.call_llm(
@@ -149,9 +155,14 @@ async def test_rate_limit_with_retry(llm_client, sample_messages, success_respon
     mock_success_response.json.return_value = success_response
 
     async with llm_client:
-        with patch.object(llm_client._client, 'post', new_callable=AsyncMock) as mock_post:
-            with patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
-                mock_post.side_effect = [mock_rate_limit_response, mock_success_response]
+        with patch.object(
+            llm_client._client, "post", new_callable=AsyncMock
+        ) as mock_post:
+            with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+                mock_post.side_effect = [
+                    mock_rate_limit_response,
+                    mock_success_response,
+                ]
 
                 result = await llm_client.call_llm(sample_messages)
 
@@ -167,8 +178,10 @@ async def test_rate_limit_exhausted_retries(llm_client, sample_messages):
     mock_response.status_code = 429
 
     async with llm_client:
-        with patch.object(llm_client._client, 'post', new_callable=AsyncMock) as mock_post:
-            with patch('asyncio.sleep', new_callable=AsyncMock):
+        with patch.object(
+            llm_client._client, "post", new_callable=AsyncMock
+        ) as mock_post:
+            with patch("asyncio.sleep", new_callable=AsyncMock):
                 mock_post.return_value = mock_response
 
                 with pytest.raises(LLMRateLimitError, match="Rate limit exceeded"):
@@ -186,7 +199,9 @@ async def test_api_error_response(llm_client, sample_messages):
     mock_response.text = "Bad request: invalid model"
 
     async with llm_client:
-        with patch.object(llm_client._client, 'post', new_callable=AsyncMock) as mock_post:
+        with patch.object(
+            llm_client._client, "post", new_callable=AsyncMock
+        ) as mock_post:
             mock_post.return_value = mock_response
 
             with pytest.raises(LLMAPIError, match="API returned status 400"):
@@ -202,8 +217,10 @@ async def test_timeout_with_retry(llm_client, sample_messages, success_response)
     mock_success_response.json.return_value = success_response
 
     async with llm_client:
-        with patch.object(llm_client._client, 'post', new_callable=AsyncMock) as mock_post:
-            with patch('asyncio.sleep', new_callable=AsyncMock):
+        with patch.object(
+            llm_client._client, "post", new_callable=AsyncMock
+        ) as mock_post:
+            with patch("asyncio.sleep", new_callable=AsyncMock):
                 mock_post.side_effect = [
                     httpx.TimeoutException("Request timed out"),
                     mock_success_response,
@@ -219,8 +236,10 @@ async def test_timeout_with_retry(llm_client, sample_messages, success_response)
 async def test_timeout_exhausted_retries(llm_client, sample_messages):
     """Test timeout error after exhausting retries."""
     async with llm_client:
-        with patch.object(llm_client._client, 'post', new_callable=AsyncMock) as mock_post:
-            with patch('asyncio.sleep', new_callable=AsyncMock):
+        with patch.object(
+            llm_client._client, "post", new_callable=AsyncMock
+        ) as mock_post:
+            with patch("asyncio.sleep", new_callable=AsyncMock):
                 mock_post.side_effect = httpx.TimeoutException("Request timed out")
 
                 with pytest.raises(LLMError, match="timed out after all retries"):
@@ -238,8 +257,10 @@ async def test_network_error_with_retry(llm_client, sample_messages, success_res
     mock_success_response.json.return_value = success_response
 
     async with llm_client:
-        with patch.object(llm_client._client, 'post', new_callable=AsyncMock) as mock_post:
-            with patch('asyncio.sleep', new_callable=AsyncMock):
+        with patch.object(
+            llm_client._client, "post", new_callable=AsyncMock
+        ) as mock_post:
+            with patch("asyncio.sleep", new_callable=AsyncMock):
                 mock_post.side_effect = [
                     httpx.RequestError("Connection refused"),
                     mock_success_response,
@@ -255,8 +276,10 @@ async def test_network_error_with_retry(llm_client, sample_messages, success_res
 async def test_network_error_exhausted_retries(llm_client, sample_messages):
     """Test network error after exhausting retries."""
     async with llm_client:
-        with patch.object(llm_client._client, 'post', new_callable=AsyncMock) as mock_post:
-            with patch('asyncio.sleep', new_callable=AsyncMock):
+        with patch.object(
+            llm_client._client, "post", new_callable=AsyncMock
+        ) as mock_post:
+            with patch("asyncio.sleep", new_callable=AsyncMock):
                 mock_post.side_effect = httpx.RequestError("Connection refused")
 
                 with pytest.raises(LLMError, match="Network error after all retries"):
@@ -274,7 +297,9 @@ async def test_invalid_response_format_no_choices(llm_client, sample_messages):
     mock_response.json.return_value = {"choices": []}
 
     async with llm_client:
-        with patch.object(llm_client._client, 'post', new_callable=AsyncMock) as mock_post:
+        with patch.object(
+            llm_client._client, "post", new_callable=AsyncMock
+        ) as mock_post:
             mock_post.return_value = mock_response
 
             with pytest.raises(LLMAPIError, match="No choices in response"):
@@ -292,7 +317,9 @@ async def test_invalid_response_format_empty_content(llm_client, sample_messages
     }
 
     async with llm_client:
-        with patch.object(llm_client._client, 'post', new_callable=AsyncMock) as mock_post:
+        with patch.object(
+            llm_client._client, "post", new_callable=AsyncMock
+        ) as mock_post:
             mock_post.return_value = mock_response
 
             with pytest.raises(LLMAPIError, match="Empty content in response"):
@@ -308,7 +335,9 @@ async def test_invalid_response_format_malformed(llm_client, sample_messages):
     mock_response.json.return_value = {"invalid": "structure"}
 
     async with llm_client:
-        with patch.object(llm_client._client, 'post', new_callable=AsyncMock) as mock_post:
+        with patch.object(
+            llm_client._client, "post", new_callable=AsyncMock
+        ) as mock_post:
             mock_post.return_value = mock_response
 
             with pytest.raises(LLMAPIError, match="No choices in response"):
@@ -342,7 +371,7 @@ async def test_extract_content_success(llm_client):
 
 def test_create_llm_client_with_valid_config():
     """Test factory function creates client with valid configuration."""
-    with patch('app.services.llm_client.get_settings') as mock_get_settings:
+    with patch("app.services.llm_client.get_settings") as mock_get_settings:
         mock_settings = MagicMock()
         mock_settings.openrouter_api_key = "test_key"
         mock_settings.llm_model = "test/model"
@@ -359,7 +388,7 @@ def test_create_llm_client_with_valid_config():
 
 def test_create_llm_client_without_api_key():
     """Test factory function raises error when API key is not configured."""
-    with patch('app.services.llm_client.get_settings') as mock_get_settings:
+    with patch("app.services.llm_client.get_settings") as mock_get_settings:
         mock_settings = MagicMock()
         mock_settings.openrouter_api_key = ""
         mock_get_settings.return_value = mock_settings
