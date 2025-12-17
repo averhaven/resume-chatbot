@@ -117,12 +117,22 @@ class TestContextFormatter:
         formatter = ContextFormatter("[%(session_id)s] %(message)s")
 
         record1 = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=1,
-            msg="first", args=(), exc_info=None
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=1,
+            msg="first",
+            args=(),
+            exc_info=None,
         )
         record2 = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=1,
-            msg="second", args=(), exc_info=None
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=1,
+            msg="second",
+            args=(),
+            exc_info=None,
         )
 
         session1 = "session-1"
