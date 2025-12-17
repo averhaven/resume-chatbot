@@ -1,10 +1,13 @@
 """Resume loader service for loading and formatting resume data."""
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from app.core.logger import get_logger
+from app.services.prompts import build_system_prompt
+from app.services.token_counter import TokenCounter
 
 logger = get_logger(__name__)
 
@@ -300,3 +303,43 @@ def create_resume_loader(resume_path: str | Path) -> ResumeLoader:
     loader = ResumeLoader(resume_path)
     loader.load()
     return loader
+
+
+@dataclass
+class ResumeContext:
+    """Encapsulates resume data, system prompt, and token count.
+
+    This class holds all resume-related data needed for chat processing,
+    computed once at startup to avoid redundant work per request.
+    """
+
+    system_prompt: str
+    system_prompt_tokens: int
+
+    @classmethod
+    def from_file(
+        cls, path: str | Path, token_counter: TokenCounter
+    ) -> "ResumeContext":
+        """Create a ResumeContext from a resume file.
+
+        Args:
+            path: Path to the resume JSON file
+            token_counter: TokenCounter instance for counting tokens
+
+        Returns:
+            ResumeContext with loaded resume, built system prompt, and token count
+
+        Raises:
+            ResumeLoadError: If resume cannot be loaded
+        """
+        loader = create_resume_loader(path)
+        resume_text = loader.get_resume_text()
+        system_prompt = build_system_prompt(resume_text)
+        system_prompt_tokens = token_counter.count_tokens(system_prompt)
+
+        logger.info(f"Built system prompt ({system_prompt_tokens} tokens)")
+
+        return cls(
+            system_prompt=system_prompt,
+            system_prompt_tokens=system_prompt_tokens,
+        )

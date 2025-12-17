@@ -24,7 +24,11 @@ class DatabaseConversationManager:
     left to the caller.
     """
 
-    def __init__(self, session: AsyncSession, session_id: str | None = None):
+    def __init__(
+        self,
+        session: AsyncSession,
+        session_id: str | None = None,
+    ):
         """Initialize database conversation manager.
 
         Args:

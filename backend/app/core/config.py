@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     database_pool_size: int = 5
     database_max_overflow: int = 10
 
+    # Rate Limiting
+    rate_limit_requests_per_minute: int = 20
+
+    # Token Limits
+    max_context_tokens: int = 8000
+    max_response_tokens: int = 2000
+    min_conversation_exchanges: int = 2
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
