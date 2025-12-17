@@ -9,6 +9,7 @@ from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from app.core.config import get_settings, validate_settings
 from app.core.context import set_session_id
 from app.core.logger import get_logger, setup_logging
+from app.core.rate_limit import WebSocketRateLimiter
 from app.db.session import DatabaseManager
 from app.models.websocket import (
     ErrorMessage,
@@ -88,6 +89,8 @@ async def handle_websocket_messages(
     conversation_manager: DatabaseConversationManager,
     resume_text: str,
     llm_client: OpenRouterClient,
+    rate_limiter: WebSocketRateLimiter,
+    session_id: str,
 ) -> None:
     """Handle WebSocket message loop.
 
@@ -99,11 +102,23 @@ async def handle_websocket_messages(
         conversation_manager: Database-backed conversation manager
         resume_text: Resume text for context
         llm_client: LLM client for API calls
+        rate_limiter: Rate limiter instance
+        session_id: Session ID for rate limiting
     """
     while True:
         data = await websocket.receive_json()
 
         try:
+            # Check rate limit before processing
+            if not await rate_limiter.is_allowed(session_id):
+                await send_error_response(
+                    websocket,
+                    "Too many requests. Please wait a moment before sending more messages.",
+                    "RATE_LIMIT_EXCEEDED",
+                    "warning",
+                )
+                continue
+
             question_msg = QuestionMessage(**data)
             logger.info("Received question")
 
@@ -193,6 +208,14 @@ async def lifespan(app: FastAPI):
     app.state.resume_loader = create_resume_loader(resume_path)
     logger.info(f"Resume loaded from {resume_path}")
 
+    # Initialize rate limiter
+    app.state.rate_limiter = WebSocketRateLimiter(
+        settings.rate_limit_requests_per_minute
+    )
+    logger.info(
+        f"Rate limiter initialized: {settings.rate_limit_requests_per_minute} req/min"
+    )
+
     yield
 
     # Shutdown cleanup
@@ -218,7 +241,7 @@ async def health_check():
 @app.get("/", response_class=HTMLResponse)
 async def get_chat_interface():
     """Serve simple HTML chat interface for testing the WebSocket chatbot."""
-    html_content = """
+    return """
     <!DOCTYPE html>
     <html>
         <head>
@@ -458,7 +481,6 @@ async def get_chat_interface():
         </body>
     </html>
     """
-    return html_content
 
 
 @app.websocket("/ws")
@@ -478,10 +500,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = None
     """
     await websocket.accept()
 
-    # session_id defaults to None from query param; DatabaseConversationManager
-    # will generate a UUID if not provided
-    provided_session_id = session_id
-    logger.info(f"Client connected (session_id param: {provided_session_id})")
+    logger.info(f"Client connected (session_id param: {session_id})")
 
     resume_loader: ResumeLoader = websocket.app.state.resume_loader
     resume_text = resume_loader.get_resume_text()
@@ -505,9 +524,16 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = None
             set_session_id(actual_session_id)
             logger.info(f"Session established: {actual_session_id}")
 
+            rate_limiter: WebSocketRateLimiter = websocket.app.state.rate_limiter
+
             async with create_llm_client() as llm_client:
                 await handle_websocket_messages(
-                    websocket, conversation_manager, resume_text, llm_client
+                    websocket,
+                    conversation_manager,
+                    resume_text,
+                    llm_client,
+                    rate_limiter,
+                    actual_session_id,
                 )
 
     except WebSocketDisconnect:
@@ -524,4 +550,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = None
         )
 
     finally:
+        # Clean up rate limit tracking for this session
+        if actual_session_id:
+            await websocket.app.state.rate_limiter.reset(actual_session_id)
         logger.info(f"Connection closed (session: {actual_session_id})")

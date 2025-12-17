@@ -20,9 +20,18 @@ SUSPICIOUS_PATTERNS: list[tuple[str, str]] = [
     (r"(?i)\bassistant\s*:\s*", "role_override_attempt"),
     (r"(?i)\buser\s*:\s*", "role_override_attempt"),
     # Instruction override attempts
-    (r"(?i)\bignore\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?)", "instruction_override_attempt"),
-    (r"(?i)\bdisregard\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?)", "instruction_override_attempt"),
-    (r"(?i)\bforget\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?)", "instruction_override_attempt"),
+    (
+        r"(?i)\bignore\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?)",
+        "instruction_override_attempt",
+    ),
+    (
+        r"(?i)\bdisregard\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?)",
+        "instruction_override_attempt",
+    ),
+    (
+        r"(?i)\bforget\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?)",
+        "instruction_override_attempt",
+    ),
     # New instruction injection
     (r"(?i)\bnew\s+instructions?\s*:", "instruction_override_attempt"),
     (r"(?i)\bupdated\s+instructions?\s*:", "instruction_override_attempt"),
@@ -60,9 +69,7 @@ def sanitize_input(text: str) -> str:
     text = "\n".join(normalized_lines)
 
     # Remove leading/trailing whitespace
-    text = text.strip()
-
-    return text
+    return text.strip()
 
 
 def check_suspicious_content(text: str) -> tuple[bool, str | None]:
