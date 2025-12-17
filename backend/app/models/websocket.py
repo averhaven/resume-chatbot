@@ -1,6 +1,15 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.core.logger import get_logger
+from app.core.sanitization import (
+    MAX_QUESTION_LENGTH,
+    check_suspicious_content,
+    sanitize_input,
+)
+
+logger = get_logger(__name__)
 
 
 class QuestionMessage(BaseModel):
@@ -8,11 +17,45 @@ class QuestionMessage(BaseModel):
 
     Attributes:
         type: Always 'question'
-        question: The user's question text
+        question: The user's question text (sanitized, max 2000 chars)
     """
 
     type: Literal["question"] = "question"
-    question: str = Field(..., min_length=1, description="User's question")
+    question: str = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_QUESTION_LENGTH,
+        description="User's question",
+    )
+
+    @field_validator("question")
+    @classmethod
+    def validate_and_sanitize_question(cls, v: str) -> str:
+        """Validate and sanitize the question text.
+
+        Performs:
+        1. Sanitization (remove control characters, normalize whitespace)
+        2. Suspicious content check (prompt injection detection)
+
+        Args:
+            v: Raw question text
+
+        Returns:
+            Sanitized question text
+
+        Raises:
+            ValueError: If question is empty after sanitization or contains suspicious content
+        """
+        sanitized = sanitize_input(v)
+        if not sanitized:
+            raise ValueError("Question cannot be empty after sanitization")
+
+        is_suspicious, category = check_suspicious_content(sanitized)
+        if is_suspicious:
+            logger.warning("Blocked suspicious content: category=%s", category)
+            raise ValueError("Message contains disallowed content")
+
+        return sanitized
 
 
 class ResponseMessage(BaseModel):
