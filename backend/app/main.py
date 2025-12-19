@@ -25,8 +25,9 @@ from app.services.llm_client import (
     OpenRouterClient,
     create_llm_client,
 )
-from app.services.prompts import build_prompt
-from app.services.resume_loader import ResumeLoader, create_resume_loader
+from app.services.prompts import build_prompt, prune_conversation_history
+from app.services.resume_loader import ResumeContext
+from app.services.token_counter import TokenCounter
 
 logger = get_logger(__name__)
 
@@ -54,17 +55,21 @@ async def send_error_response(
 
 async def process_question(
     question: str,
-    resume_text: str,
+    system_prompt: str,
+    system_prompt_tokens: int,
     conversation_manager: DatabaseConversationManager,
     llm_client: OpenRouterClient,
+    token_counter: TokenCounter,
 ) -> str:
     """Process a user question and generate LLM response.
 
     Args:
         question: User's question text
-        resume_text: Formatted resume text
+        system_prompt: Pre-built system prompt with resume context
+        system_prompt_tokens: Token count of the system prompt
         conversation_manager: Conversation manager instance
         llm_client: LLM client instance
+        token_counter: Token counter instance for pruning
 
     Returns:
         LLM response text
@@ -72,8 +77,25 @@ async def process_question(
     Note:
         Caller must commit the database session.
     """
+    settings = get_settings()
+
+    # Get history and prune if needed
     history = await conversation_manager.get_conversation()
-    messages = build_prompt(resume_text, history, question)
+
+    # Prune history to fit within token limits
+    pruned_history, tokens_removed = prune_conversation_history(
+        history=history,
+        token_counter=token_counter,
+        system_tokens=system_prompt_tokens,
+        max_tokens=settings.max_context_tokens,
+        min_exchanges=settings.min_conversation_exchanges,
+        response_reserve=settings.max_response_tokens,
+    )
+
+    if tokens_removed > 0:
+        logger.info(f"Pruned {tokens_removed} tokens from conversation history")
+
+    messages = build_prompt(system_prompt, pruned_history, question)
 
     logger.info("Calling LLM API")
     response_text = await llm_client.call_llm(messages)
@@ -87,10 +109,12 @@ async def process_question(
 async def handle_websocket_messages(
     websocket: WebSocket,
     conversation_manager: DatabaseConversationManager,
-    resume_text: str,
+    system_prompt: str,
+    system_prompt_tokens: int,
     llm_client: OpenRouterClient,
     rate_limiter: WebSocketRateLimiter,
     session_id: str,
+    token_counter: TokenCounter,
 ) -> None:
     """Handle WebSocket message loop.
 
@@ -100,10 +124,12 @@ async def handle_websocket_messages(
     Args:
         websocket: WebSocket connection
         conversation_manager: Database-backed conversation manager
-        resume_text: Resume text for context
+        system_prompt: Pre-built system prompt with resume context
+        system_prompt_tokens: Token count of the system prompt
         llm_client: LLM client for API calls
         rate_limiter: Rate limiter instance
         session_id: Session ID for rate limiting
+        token_counter: Token counter for pruning
     """
     while True:
         data = await websocket.receive_json()
@@ -124,9 +150,11 @@ async def handle_websocket_messages(
 
             response_text = await process_question(
                 question_msg.question,
-                resume_text,
+                system_prompt,
+                system_prompt_tokens,
                 conversation_manager,
                 llm_client,
+                token_counter,
             )
 
             # Commit database transaction
@@ -200,12 +228,18 @@ async def lifespan(app: FastAPI):
     db_manager.initialize(settings)
     app.state.db_manager = db_manager
 
-    # Load resume data
+    # Initialize token counter
+    app.state.token_counter = TokenCounter()
+    logger.info("Token counter initialized")
+
+    # Load resume and build system prompt
     resume_path = Path(settings.resume_path)
     if not resume_path.is_absolute():
         resume_path = Path(__file__).parent.parent / resume_path
 
-    app.state.resume_loader = create_resume_loader(resume_path)
+    app.state.resume_context = ResumeContext.from_file(
+        resume_path, app.state.token_counter
+    )
     logger.info(f"Resume loaded from {resume_path}")
 
     # Initialize rate limiter
@@ -502,8 +536,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = None
 
     logger.info(f"Client connected (session_id param: {session_id})")
 
-    resume_loader: ResumeLoader = websocket.app.state.resume_loader
-    resume_text = resume_loader.get_resume_text()
+    resume_context: ResumeContext = websocket.app.state.resume_context
 
     welcome = SystemMessage(
         message="Connected! Ready to answer questions about the resume."
@@ -516,6 +549,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = None
     try:
         # Use database-backed conversation manager
         db_manager: DatabaseManager = websocket.app.state.db_manager
+        token_counter: TokenCounter = websocket.app.state.token_counter
         async with db_manager.get_session() as db_session:
             conversation_manager = DatabaseConversationManager(db_session, session_id)
             # Get the actual session_id (generated if not provided)
@@ -530,10 +564,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = None
                 await handle_websocket_messages(
                     websocket,
                     conversation_manager,
-                    resume_text,
+                    resume_context.system_prompt,
+                    resume_context.system_prompt_tokens,
                     llm_client,
                     rate_limiter,
                     actual_session_id,
+                    token_counter,
                 )
 
     except WebSocketDisconnect:

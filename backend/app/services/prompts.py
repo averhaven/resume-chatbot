@@ -1,6 +1,7 @@
 """Prompt building service for constructing LLM prompts."""
 
 from app.core.logger import get_logger
+from app.services.token_counter import TokenCounter
 
 logger = get_logger(__name__)
 
@@ -38,7 +39,7 @@ def build_system_prompt(resume_text: str) -> str:
 
 
 def build_prompt(
-    resume_text: str,
+    system_prompt: str,
     conversation_history: list[dict[str, str]],
     new_question: str,
 ) -> list[dict[str, str]]:
@@ -50,7 +51,7 @@ def build_prompt(
     3. New user question
 
     Args:
-        resume_text: Formatted resume text
+        system_prompt: Pre-built system prompt (from build_system_prompt)
         conversation_history: Previous messages in the conversation
         new_question: New user question to add
 
@@ -59,8 +60,7 @@ def build_prompt(
     """
     messages = []
 
-    # Add system prompt with resume
-    system_prompt = build_system_prompt(resume_text)
+    # Add system prompt
     messages.append({"role": "system", "content": system_prompt})
 
     # Add conversation history (excluding any existing system messages)
@@ -79,16 +79,71 @@ def build_prompt(
     return messages
 
 
-def build_initial_prompt(resume_text: str, question: str) -> list[dict[str, str]]:
-    """Build a prompt for the first message in a conversation.
+def prune_conversation_history(
+    history: list[dict[str, str]],
+    token_counter: TokenCounter,
+    system_tokens: int,
+    max_tokens: int,
+    min_exchanges: int,
+    response_reserve: int,
+) -> tuple[list[dict[str, str]], int]:
+    """Prune conversation history to fit within token limits.
 
-    This is a convenience function for when there's no conversation history.
+    Removes oldest messages when history exceeds the available token budget.
+    Always preserves at least min_exchanges Q&A pairs (2 messages each).
 
     Args:
-        resume_text: Formatted resume text
-        question: User's first question
+        history: List of message dictionaries with 'role' and 'content' keys
+        token_counter: TokenCounter instance for counting tokens
+        system_tokens: Number of tokens in the system prompt
+        max_tokens: Maximum context tokens allowed
+        min_exchanges: Minimum Q&A exchanges to keep (each exchange = 2 messages)
+        response_reserve: Tokens reserved for the response
 
     Returns:
-        List of message dictionaries with 'role' and 'content' keys
+        Tuple of (pruned_history, tokens_removed)
     """
-    return build_prompt(resume_text, [], question)
+    if not history:
+        return [], 0
+
+    available_tokens = max_tokens - system_tokens - response_reserve
+    min_messages = min_exchanges * 2
+
+    if available_tokens <= 0:
+        logger.warning(
+            f"No tokens available for history. "
+            f"System: {system_tokens}, max: {max_tokens}, reserve: {response_reserve}"
+        )
+
+    # Pre-compute token counts for efficiency
+    message_tokens = [token_counter.count_messages([msg]) for msg in history]
+    total_tokens = sum(message_tokens)
+
+    # No pruning needed if within budget
+    if total_tokens <= available_tokens:
+        logger.debug(
+            f"History fits within budget: {total_tokens}/{available_tokens} tokens"
+        )
+        return history.copy(), 0
+
+    # Remove oldest messages until we fit or reach minimum
+    cutoff = 0
+    remaining_tokens = total_tokens
+    max_removable = len(history) - min_messages
+
+    while cutoff < max_removable and remaining_tokens > available_tokens:
+        remaining_tokens -= message_tokens[cutoff]
+        cutoff += 1
+
+    tokens_removed = total_tokens - remaining_tokens
+
+    if cutoff > 0:
+        logger.info(
+            f"Pruned {cutoff} messages ({tokens_removed} tokens), "
+            f"kept {len(history) - cutoff} messages ({remaining_tokens} tokens)"
+        )
+
+    if remaining_tokens > available_tokens:
+        logger.warning("History exceeds budget even after pruning to minimum messages")
+
+    return history[cutoff:], tokens_removed
