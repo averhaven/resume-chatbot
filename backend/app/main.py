@@ -2,8 +2,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import ValidationError
+from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from app.core.config import get_settings, validate_settings
@@ -266,10 +267,55 @@ app = FastAPI(
 
 
 @app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    logger.debug("Health check requested")
-    return {"status": "healthy"}
+async def health_check(deep: bool = False):
+    """Health check endpoint.
+
+    Args:
+        deep: If True, performs deep health checks including database
+              connectivity and resume loading verification.
+
+    Returns:
+        JSON response with health status. Returns 200 if healthy,
+        503 if any component is unhealthy (only for deep checks).
+    """
+    logger.debug(f"Health check requested (deep={deep})")
+
+    status = {"status": "healthy", "checks": {}}
+
+    if deep:
+        # Database connectivity check
+        try:
+            db_manager: DatabaseManager = getattr(app.state, "db_manager", None)
+            if db_manager is None:
+                status["checks"]["database"] = "unavailable"
+                status["status"] = "degraded"
+            else:
+                async with db_manager.get_session() as session:
+                    await session.execute(text("SELECT 1"))
+                status["checks"]["database"] = "healthy"
+        except Exception as e:
+            status["checks"]["database"] = "unhealthy"
+            status["status"] = "degraded"
+            logger.warning(f"Database health check failed: {e}")
+
+        # Resume loaded check
+        try:
+            resume_context: ResumeContext = getattr(app.state, "resume_context", None)
+            if resume_context is None:
+                status["checks"]["resume"] = "unavailable"
+                status["status"] = "degraded"
+            elif resume_context.system_prompt:
+                status["checks"]["resume"] = "healthy"
+            else:
+                status["checks"]["resume"] = "unhealthy"
+                status["status"] = "degraded"
+        except Exception as e:
+            status["checks"]["resume"] = "unhealthy"
+            status["status"] = "degraded"
+            logger.warning(f"Resume health check failed: {e}")
+
+    http_status = 200 if status["status"] == "healthy" else 503
+    return JSONResponse(content=status, status_code=http_status)
 
 
 @app.get("/", response_class=HTMLResponse)
