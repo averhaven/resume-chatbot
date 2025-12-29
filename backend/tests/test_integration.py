@@ -148,11 +148,15 @@ class TestEndToEndChat:
                         {"type": "question", "question": "Test question"}
                     )
 
-                    # Should receive error message
+                    # Should receive user-friendly error message (no internal details)
                     response = websocket.receive_json()
                     assert response["type"] == "error"
                     assert response["code"] == "API_ERROR"
-                    assert "API error" in response["error"]
+                    # User-friendly message should not expose internal error details
+                    assert "AI service" in response["error"]
+                    assert (
+                        "API Error" not in response["error"]
+                    )  # Internal detail hidden
 
     def test_llm_rate_limit_error_handling(self, mock_llm_client):
         """Test that rate limit errors are handled gracefully."""
@@ -172,11 +176,15 @@ class TestEndToEndChat:
                         {"type": "question", "question": "Test question"}
                     )
 
-                    # Should receive error message
+                    # Should receive user-friendly error message
                     response = websocket.receive_json()
                     assert response["type"] == "error"
                     assert response["code"] == "RATE_LIMIT"
-                    assert "Rate limit" in response["error"]
+                    # User-friendly message tells user to wait
+                    assert "wait" in response["error"].lower()
+                    assert (
+                        "Rate limit exceeded" not in response["error"]
+                    )  # Internal hidden
 
     def test_conversation_persists_within_session(self, mock_llm_client):
         """Test that conversation history persists within a WebSocket session."""

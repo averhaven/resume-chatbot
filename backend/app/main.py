@@ -9,6 +9,7 @@ from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from app.core.config import get_settings, validate_settings
 from app.core.context import set_session_id
+from app.core.errors import ErrorCode, get_user_message
 from app.core.logger import get_logger, setup_logging
 from app.core.rate_limit import WebSocketRateLimiter
 from app.db.session import DatabaseManager
@@ -35,23 +36,36 @@ logger = get_logger(__name__)
 
 async def send_error_response(
     websocket: WebSocket,
-    error_message: str,
-    error_code: str,
+    error_code: ErrorCode | str,
+    log_message: str | None = None,
     log_level: str = "error",
 ) -> None:
-    """Send error response via WebSocket and log it.
+    """Send user-friendly error response via WebSocket and log internal details.
+
+    The user receives a friendly, non-technical message while the full error
+    details are logged for debugging purposes.
 
     Args:
         websocket: WebSocket connection
-        error_message: Error message to send to client
-        error_code: Error code identifier
+        error_code: Error code identifier (ErrorCode enum or string)
+        log_message: Internal error details for logging (not sent to user)
         log_level: Logging level - "error", "warning", or "info"
     """
-    error = ErrorMessage(error=error_message, code=error_code)
+    # Get user-friendly message (hides internal details)
+    user_message = get_user_message(error_code)
+
+    # Get string code for the response
+    code_str = error_code.value if isinstance(error_code, ErrorCode) else error_code
+
+    error = ErrorMessage(error=user_message, code=code_str)
     await websocket.send_json(error.model_dump())
 
+    # Log internal details (not sent to user)
     log_func = getattr(logger, log_level, logger.error)
-    log_func(f"{error_code}: {error_message}")
+    if log_message:
+        log_func(f"{code_str}: {log_message}")
+    else:
+        log_func(f"{code_str}: {user_message}")
 
 
 async def process_question(
@@ -140,9 +154,9 @@ async def handle_websocket_messages(
             if not await rate_limiter.is_allowed(session_id):
                 await send_error_response(
                     websocket,
-                    "Too many requests. Please wait a moment before sending more messages.",
-                    "RATE_LIMIT_EXCEEDED",
-                    "warning",
+                    ErrorCode.RATE_LIMIT_EXCEEDED,
+                    log_message="Rate limit exceeded for session",
+                    log_level="warning",
                 )
                 continue
 
@@ -168,48 +182,53 @@ async def handle_websocket_messages(
         except ValidationError as e:
             await send_error_response(
                 websocket,
-                f"Invalid message format: {e!s}",
-                "VALIDATION_ERROR",
-                "warning",
+                ErrorCode.VALIDATION_ERROR,
+                log_message=f"Invalid message format: {e!s}",
+                log_level="warning",
             )
 
         except LLMRateLimitError as e:
             await send_error_response(
                 websocket,
-                f"Rate limit exceeded: {e!s}. Please try again later.",
-                "RATE_LIMIT",
-                "warning",
+                ErrorCode.RATE_LIMIT,
+                log_message=f"LLM rate limit exceeded: {e!s}",
+                log_level="warning",
             )
 
         except LLMAPIError as e:
-            await send_error_response(websocket, f"API error: {e!s}", "API_ERROR")
+            await send_error_response(
+                websocket,
+                ErrorCode.API_ERROR,
+                log_message=f"LLM API error: {e!s}",
+            )
 
         except LLMError as e:
-            await send_error_response(websocket, f"Service error: {e!s}", "LLM_ERROR")
+            await send_error_response(
+                websocket,
+                ErrorCode.LLM_ERROR,
+                log_message=f"LLM service error: {e!s}",
+            )
 
         except OperationalError as e:
             await send_error_response(
                 websocket,
-                "Database connection error. Please try again.",
-                "DATABASE_ERROR",
+                ErrorCode.DATABASE_ERROR,
+                log_message=f"Database connection error: {e!s}",
             )
-            logger.error(f"Database connection error: {e}", exc_info=True)
 
         except SQLAlchemyError as e:
             await send_error_response(
                 websocket,
-                "Database error. Please try again.",
-                "DATABASE_ERROR",
+                ErrorCode.DATABASE_ERROR,
+                log_message=f"Database error: {e!s}",
             )
-            logger.error(f"Database error: {e}", exc_info=True)
 
         except Exception as e:
             await send_error_response(
                 websocket,
-                "An unexpected error occurred. Please try again.",
-                "INTERNAL_ERROR",
+                ErrorCode.INTERNAL_ERROR,
+                log_message=f"Unexpected error: {e!s}",
             )
-            logger.error(f"Unexpected error details: {e}", exc_info=True)
 
 
 @asynccontextmanager
