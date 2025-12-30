@@ -1,13 +1,37 @@
 """Pytest configuration and fixtures for database testing."""
 
 import asyncio
+import os
 from collections.abc import AsyncGenerator
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.core.config import get_settings
 from app.db.base import Base
+
+# Set up test database URL BEFORE importing anything that uses settings
+# Use a file-based SQLite database for tests (shared across connections)
+TEST_DB_PATH = Path(__file__).parent / "test.db"
+TEST_DATABASE_URL = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
+
+
+class TestDatabase:
+    """Container for test database engine and session factory."""
+
+    engine = None
+    session_factory = None
+
+
+def pytest_configure(config):
+    """Configure pytest with test database settings.
+
+    This runs before any imports happen, ensuring the test database
+    URL is set before the app's settings are loaded.
+    """
+    os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
 
 @pytest.fixture(scope="session")
@@ -22,44 +46,85 @@ def event_loop():
     loop.close()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def test_engine():
-    """Create a test database engine for each test.
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_database(event_loop):
+    """Set up test database at the start of the test session.
 
-    Uses an in-memory SQLite database for testing.
-    Each test gets a fresh database.
+    Creates all tables and cleans up the database file after tests complete.
+    This single database is used by both unit tests and integration tests.
     """
-    # Use in-memory SQLite for fast tests
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-        future=True,
-    )
+    # Clear settings cache to ensure test database URL is used
+    get_settings.cache_clear()
 
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    yield engine
-
-    # Close engine
-    await engine.dispose()
-
-
-@pytest_asyncio.fixture(scope="function")
-async def db_session(test_engine) -> AsyncGenerator[AsyncSession]:
-    """Create a database session for testing.
-
-    Each test function gets a fresh database and session.
-    """
-    # Create session factory
-    session_factory = async_sessionmaker(
-        test_engine,
+    # Create shared engine and session factory
+    TestDatabase.engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    TestDatabase.session_factory = async_sessionmaker(
+        TestDatabase.engine,
         class_=AsyncSession,
         expire_on_commit=False,
         autoflush=False,
     )
 
-    async with session_factory() as session:
+    # Create tables
+    async def create_tables():
+        async with TestDatabase.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    event_loop.run_until_complete(create_tables())
+
+    yield
+
+    # Cleanup
+    async def cleanup():
+        if TestDatabase.engine:
+            await TestDatabase.engine.dispose()
+
+    event_loop.run_until_complete(cleanup())
+    get_settings.cache_clear()
+
+    if TEST_DB_PATH.exists():
+        TEST_DB_PATH.unlink()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def db_session() -> AsyncGenerator[AsyncSession]:
+    """Create a database session for testing.
+
+    Uses the shared test database. Each test gets a fresh session,
+    and data is cleaned up after each test.
+    """
+    if TestDatabase.session_factory is None:
+        raise RuntimeError("Test database not initialized")
+
+    async with TestDatabase.session_factory() as session:
         yield session
+        await session.rollback()  # Rollback any uncommitted changes
         await session.close()
+
+
+@pytest.fixture(autouse=True)
+def clean_test_database(event_loop):
+    """Clean up test database tables between tests.
+
+    This ensures each test starts with a clean database state.
+    """
+    yield
+
+    # Clean up tables after each test
+    async def cleanup():
+        if TestDatabase.engine is None:
+            return
+        async with TestDatabase.engine.begin() as conn:
+            # Delete all data from tables (order matters due to foreign keys)
+            await conn.run_sync(
+                lambda sync_conn: sync_conn.execute(
+                    Base.metadata.tables["messages"].delete()
+                )
+            )
+            await conn.run_sync(
+                lambda sync_conn: sync_conn.execute(
+                    Base.metadata.tables["conversations"].delete()
+                )
+            )
+
+    event_loop.run_until_complete(cleanup())
