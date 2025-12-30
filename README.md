@@ -2,6 +2,30 @@
 
 A real-time conversational AI backend built with FastAPI that answers questions about resumes using LLM integration. Features async WebSocket communication, PostgreSQL persistence, and clean architecture patterns.
 
+## About This Project
+
+### Purpose
+
+This project demonstrates a production-ready approach to building conversational AI applications. Rather than using complex RAG (Retrieval Augmented Generation) pipelines with vector databases, it takes a simpler approach: injecting the full resume context directly into each LLM request alongside conversation history.
+
+### Key Features
+
+- **Real-time WebSocket Chat**: Bidirectional communication for responsive conversational experience
+- **Session Persistence**: Conversations stored in PostgreSQL with session resumption support
+- **Direct Context Injection**: Full resume sent with each request—no embeddings or vector search needed
+- **Multi-Model Support**: Access to Claude, GPT-4, Llama, and more via OpenRouter gateway
+- **Production-Ready**: Rate limiting, connection pooling, retry logic, and comprehensive error handling
+- **Async Throughout**: Non-blocking I/O for database, HTTP, and WebSocket operations
+
+### Tech Stack at a Glance
+
+| Layer | Technology |
+|-------|------------|
+| API | FastAPI + WebSockets |
+| LLM | OpenRouter (multi-model gateway) |
+| Database | PostgreSQL + SQLAlchemy async |
+| Runtime | Python 3.13 + uv |
+
 ## Architecture
 
 ```mermaid
