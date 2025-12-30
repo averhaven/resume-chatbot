@@ -65,18 +65,27 @@ Document the Phase 4 implementation plan in the project repository.
 ---
 
 ### Task 4: Add End-to-End Conversation Tests
-**Status**: ⏳ Pending
+**Status**: ✅ Complete
 
 **Goal**: Test complete conversation lifecycle with persistence
 
-**Files to create**:
-- `backend/tests/test_e2e_conversation.py` - New comprehensive e2e tests
+**Files created**:
+- `backend/tests/test_e2e_conversation.py` - Comprehensive e2e tests with database verification
 
-**Work**:
-1. Test: Connect → send messages → verify persistence → disconnect
-2. Test: Resume conversation by session_id
-3. Test: Multi-message sequences
-4. Test: Conversation across reconnects
+**Work completed**:
+1. Created `TestConversationPersistence` class:
+   - `test_messages_are_persisted_to_database` - Verifies messages saved to DB
+   - `test_multi_message_sequence_persisted` - Verifies multiple messages in sequence
+2. Created `TestSessionResumption` class:
+   - `test_resume_conversation_by_session_id` - Resume conversation with session_id
+   - `test_session_id_creates_single_conversation` - Same session_id reuses conversation
+3. Created `TestConversationAcrossReconnects` class:
+   - `test_conversation_history_loads_on_reconnect` - History loads from DB on reconnect
+   - `test_multiple_reconnections_preserve_full_history` - History preserved across 5 reconnects
+4. Created `TestNewVsExistingSession` class:
+   - `test_no_session_id_creates_new_conversation` - New session without ID
+   - `test_invalid_session_id_creates_new_conversation` - Non-existent ID creates new
+5. All 255 tests now pass with `uv run pytest`
 
 ---
 
@@ -157,7 +166,7 @@ Document the Phase 4 implementation plan in the project repository.
 | 1 | Create PHASE4_PLAN.md | ✅ Complete |
 | 2 | Fix Integration Tests | ✅ Complete |
 | 3 | Clean Up Documentation | ✅ Complete |
-| 4 | E2E Conversation Tests | ⏳ Pending |
+| 4 | E2E Conversation Tests | ✅ Complete |
 | 5 | CI/CD Pipeline | ⏳ Pending |
 | 6 | Load Testing | ⏳ Pending |
 | 7 | Code Documentation | ⏳ Pending |
