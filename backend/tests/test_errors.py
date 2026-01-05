@@ -49,9 +49,9 @@ class TestUserFriendlyMessages:
     def test_all_error_codes_have_messages(self):
         """All ErrorCode values should have a user-friendly message."""
         for code in ErrorCode:
-            assert (
-                code in USER_FRIENDLY_MESSAGES
-            ), f"ErrorCode.{code.name} should have a user-friendly message"
+            assert code in USER_FRIENDLY_MESSAGES, (
+                f"ErrorCode.{code.name} should have a user-friendly message"
+            )
 
     def test_messages_are_non_empty_strings(self):
         """All user-friendly messages should be non-empty strings."""
@@ -74,9 +74,9 @@ class TestUserFriendlyMessages:
         ]
         for code, message in USER_FRIENDLY_MESSAGES.items():
             for term in technical_terms:
-                assert (
-                    term.lower() not in message.lower()
-                ), f"Message for {code} contains technical term '{term}'"
+                assert term.lower() not in message.lower(), (
+                    f"Message for {code} contains technical term '{term}'"
+                )
 
     def test_messages_end_with_period(self):
         """User messages should end with proper punctuation."""
