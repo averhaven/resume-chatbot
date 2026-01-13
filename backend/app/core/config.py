@@ -8,6 +8,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
 
+    # Server
+    port: int = 8080  # Cloud Run uses PORT env var
+
     # Environment
     log_level: str = "INFO"
 
@@ -22,8 +25,8 @@ class Settings(BaseSettings):
     # Database Configuration
     database_url: str = "postgresql+asyncpg://chatbot:chatbot_dev_password@localhost:5432/resume_chatbot"
     database_echo: bool = False  # Log SQL queries (set to True for debugging)
-    database_pool_size: int = 5
-    database_max_overflow: int = 10
+    database_pool_size: int = 2  # Reduced for serverless environments
+    database_max_overflow: int = 3  # Reduced for serverless environments
 
     # Rate Limiting
     rate_limit_requests_per_minute: int = 20

@@ -493,7 +493,8 @@ async def get_chat_interface():
             </div>
 
             <script>
-                const ws = new WebSocket("ws://localhost:8000/ws");
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
                 const messagesDiv = document.getElementById("messages");
                 const messageInput = document.getElementById("messageInput");
                 const sendButton = document.getElementById("sendButton");

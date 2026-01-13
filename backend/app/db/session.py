@@ -1,5 +1,6 @@
 """Database session management."""
 
+import ssl
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -40,13 +41,22 @@ class DatabaseManager:
         if self._engine is not None:
             raise RuntimeError("Database already initialized")
 
+        # Strip query params from URL (asyncpg doesn't support sslmode, channel_binding, etc.)
+        db_url = settings.database_url.split("?")[0]
+
+        # Configure SSL for cloud databases (Neon, etc.)
+        connect_args: dict = {}
+        if "neon.tech" in db_url or "ssl" in settings.database_url:
+            connect_args["ssl"] = ssl.create_default_context()
+
         self._engine = create_async_engine(
-            settings.database_url,
+            db_url,
             echo=settings.database_echo,
             pool_size=settings.database_pool_size,
             max_overflow=settings.database_max_overflow,
-            pool_pre_ping=True,
-            pool_recycle=3600,
+            pool_pre_ping=True,  # Validates connections before use
+            pool_recycle=300,  # Recycle connections every 5 min (for serverless DBs like Neon)
+            connect_args=connect_args,
         )
 
         self._session_factory = async_sessionmaker(
