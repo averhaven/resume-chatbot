@@ -1,11 +1,12 @@
 """Alembic environment configuration."""
 
 import asyncio
+import ssl
 from logging.config import fileConfig
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
 from app.core.config import get_settings
@@ -54,10 +55,18 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     """Run migrations in async mode."""
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    # Strip query params from URL (asyncpg doesn't support sslmode, channel_binding, etc.)
+    db_url = settings.database_url.split("?")[0]
+
+    # Configure SSL for cloud databases (Neon, etc.)
+    connect_args: dict = {}
+    if "neon.tech" in db_url or "ssl" in settings.database_url:
+        connect_args["ssl"] = ssl.create_default_context()
+
+    connectable = create_async_engine(
+        db_url,
         poolclass=pool.NullPool,
+        connect_args=connect_args,
     )
 
     async with connectable.connect() as connection:

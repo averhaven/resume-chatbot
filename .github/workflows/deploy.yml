@@ -1,0 +1,77 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  SERVICE_NAME: resume-chatbot
+  REGION: europe-west3
+
+jobs:
+  # Run existing CI workflow first
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Deploy
+    needs: ci
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push Docker image
+        run: |
+          gcloud builds submit backend/ \
+            --tag ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/cloud-run/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --tag ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/cloud-run/${{ env.SERVICE_NAME }}:latest
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/cloud-run/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          env_vars: |
+            LOG_LEVEL=INFO
+            RESUME_PATH=data/resume.json
+            LLM_MODEL=meta-llama/llama-3.2-3b-instruct:free
+            LLM_TIMEOUT=60.0
+          secrets: |
+            DATABASE_URL=neon-database-url:latest
+            OPENROUTER_API_KEY=openrouter-api-key:latest
+          flags: |
+            --allow-unauthenticated
+            --min-instances=0
+            --max-instances=2
+            --memory=512Mi
+            --cpu=1
+            --timeout=60s
+
+      - name: Show deployed URL
+        run: |
+          echo "Deployed to: $(gcloud run services describe ${{ env.SERVICE_NAME }} --region=${{ env.REGION }} --format='value(status.url)')"
