@@ -344,7 +344,7 @@ async def get_chat_interface():
     <!DOCTYPE html>
     <html>
         <head>
-            <title>Resume Chatbot</title>
+            <title>Alexandra Verhaven | Resume Chat</title>
             <style>
                 * {
                     margin: 0;
@@ -385,6 +385,11 @@ async def get_chat_interface():
                     font-size: 14px;
                     opacity: 0.9;
                     margin-top: 5px;
+                }
+                .header .tagline {
+                    font-size: 12px;
+                    opacity: 0.75;
+                    margin-top: 8px;
                 }
                 #messages {
                     flex: 1;
@@ -477,15 +482,16 @@ async def get_chat_interface():
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>Resume Chatbot</h1>
-                    <p>Ask me anything about the resume</p>
+                    <h1>Alexandra Verhaven</h1>
+                    <p>Ask me anything about my background, skills, and experience</p>
+                    <p class="tagline">Software Developer seeking new opportunities</p>
                 </div>
                 <div id="messages"></div>
                 <div class="input-area">
                     <input
                         type="text"
                         id="messageInput"
-                        placeholder="Ask a question about the resume..."
+                        placeholder="e.g., What technologies has Alexandra worked with?"
                         autocomplete="off"
                     />
                     <button onclick="sendMessage()" id="sendButton">Send</button>
@@ -605,7 +611,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = None
     resume_context: ResumeContext = websocket.app.state.resume_context
 
     welcome = SystemMessage(
-        message="Connected! Ready to answer questions about the resume."
+        message="Hi! I'm an AI assistant here to answer questions about Alexandra's resume. Feel free to ask about her experience, skills, or projects."
     )
     await websocket.send_json(welcome.model_dump())
 
