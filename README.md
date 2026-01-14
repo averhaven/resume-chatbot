@@ -2,6 +2,8 @@
 
 A real-time conversational AI backend built with FastAPI that answers questions about resumes using LLM integration. Features async WebSocket communication, PostgreSQL persistence, and clean architecture patterns.
 
+**[Try the Live Demo →](https://resume-chatbot-vfczoegceq-ey.a.run.app)**
+
 ## About This Project
 
 ### Purpose
@@ -334,6 +336,10 @@ uv add --dev <package>
 4. **Async Throughout**: All I/O operations are async (database, HTTP, WebSocket) for optimal concurrency.
 
 5. **Session Persistence**: Conversations stored in PostgreSQL with session resumption support.
+
+## Deployment
+
+This application is deployed on Google Cloud Run with Neon PostgreSQL. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full deployment guide including cost protection setup.
 
 ## License
 

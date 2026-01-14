@@ -2,6 +2,8 @@
 
 Deploy the resume chatbot to Google Cloud Run (free tier) with Neon PostgreSQL (free tier).
 
+> **Status**: Successfully deployed at https://resume-chatbot-vfczoegceq-ey.a.run.app
+
 ---
 
 ## Cost Protection Setup (Recommended First Step)
