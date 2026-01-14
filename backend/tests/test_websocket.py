@@ -30,7 +30,7 @@ def test_websocket_connection(test_client, mock_llm_client):
             # Should receive welcome message
             welcome = websocket.receive_json()
             assert welcome["type"] == "system"
-            assert "Connected" in welcome["message"]
+            assert "Alexandra's resume" in welcome["message"]
 
 
 def test_websocket_basic_chat(test_client, mock_llm_client):
