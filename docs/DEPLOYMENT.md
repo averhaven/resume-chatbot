@@ -290,7 +290,7 @@ gcloud run deploy resume-chatbot \
   --region=$REGION \
   --platform=managed \
   --allow-unauthenticated \
-  --set-env-vars="LOG_LEVEL=INFO,RESUME_PATH=data/resume.json,LLM_MODEL=meta-llama/llama-3.2-3b-instruct:free,LLM_TIMEOUT=60.0" \
+  --set-env-vars="LOG_LEVEL=INFO,RESUME_PATH=data/resume.json,LLM_MODEL=google/gemini-2.5-flash,LLM_TIMEOUT=60.0" \
   --set-secrets="DATABASE_URL=neon-database-url:latest,OPENROUTER_API_KEY=openrouter-api-key:latest" \
   --project=$PROJECT_ID
 ```

@@ -105,7 +105,7 @@ backend/
 │       ├── conversation_db.py  # Conversation state management
 │       ├── prompts.py          # Prompt templates and builders
 │       └── resume_loader.py    # Resume parsing and formatting
-├── tests/                      # Pytest test suite (135 tests)
+├── tests/                      # Pytest test suite (255 tests)
 ├── alembic/                    # Database migrations
 ├── data/                       # Resume data files
 └── pyproject.toml              # Dependencies and tooling config
@@ -123,24 +123,27 @@ backend/
 ### Setup
 
 ```bash
-# Install dependencies
-cd backend && uv sync
-
-# Start PostgreSQL
+# Start PostgreSQL (from project root)
 docker-compose up -d
 
+# Navigate to backend
+cd backend
+
+# Install dependencies
+uv sync
+
 # Configure environment
-cp backend/.env.example backend/.env
-# Edit backend/.env and add your OPENROUTER_API_KEY
+cp .env.example .env
+# Edit .env and add your OPENROUTER_API_KEY
 
 # Run database migrations
-cd backend && uv run alembic upgrade head
+uv run alembic upgrade head
 
 # Start development server
-cd backend && uv run uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 
-The server starts at `http://localhost:8000` with a built-in chat UI.
+The server starts at `http://localhost:8000` with a built-in chat UI that supports auto-reconnection.
 
 ## Configuration
 
@@ -149,10 +152,10 @@ All settings are managed via environment variables with Pydantic validation:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENROUTER_API_KEY` | *required* | API key for LLM access |
-| `LLM_MODEL` | `meta-llama/llama-3.2-3b-instruct:free` | Model identifier |
+| `LLM_MODEL` | `google/gemini-2.5-flash` | Model identifier |
 | `LLM_TIMEOUT` | `60.0` | API request timeout (seconds) |
 | `DATABASE_URL` | `postgresql+asyncpg://...` | Async database connection string |
-| `DATABASE_POOL_SIZE` | `5` | Connection pool size |
+| `DATABASE_POOL_SIZE` | `2` | Connection pool size |
 | `RESUME_PATH` | `data/resume.json` | Path to resume JSON file |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 
@@ -160,13 +163,13 @@ All settings are managed via environment variables with Pydantic validation:
 
 OpenRouter provides access to multiple LLM providers:
 
-**Free Tier (development):**
-- `meta-llama/llama-3.2-3b-instruct:free`
-- `google/gemini-flash-1.5-8b:free`
+**Recommended (cheap and reliable):**
+- `google/gemini-2.5-flash` - $0.30/M input, $2.50/M output
 
-**Production:**
-- `anthropic/claude-3.5-sonnet`
-- `openai/gpt-4o`
+**Other options:**
+- `google/gemini-2.0-flash-001` - Fast and affordable
+- `anthropic/claude-3.5-sonnet` - High quality
+- `openai/gpt-4o` - OpenAI flagship
 
 ## API Reference
 
@@ -257,7 +260,7 @@ cd backend && uv run alembic history
 
 ## Testing
 
-The project includes 135 tests covering all major components:
+The project includes 255 tests covering all major components:
 
 ```bash
 # Run all tests
