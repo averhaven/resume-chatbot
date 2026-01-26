@@ -19,7 +19,9 @@ class Settings(BaseSettings):
 
     # OpenRouter API
     openrouter_api_key: str = ""
-    llm_model: str = "meta-llama/llama-3.2-3b-instruct:free"  # Free tier for local dev
+    llm_model: str = (
+        "google/gemini-2.5-flash"  # Cheap and reliable ($0.30/M input, $2.50/M output)
+    )
     llm_timeout: float = 60.0
 
     # Database Configuration
@@ -67,7 +69,10 @@ class Settings(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
-        """Validate database URL uses a supported dialect.
+        """Validate database URL uses a supported async dialect.
+
+        Note: SQLite is supported for testing only. Production requires PostgreSQL
+        due to JSONB and UUID column types in the schema.
 
         Args:
             v: Database URL

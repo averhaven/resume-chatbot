@@ -90,7 +90,9 @@ class SystemMessage(BaseModel):
     Attributes:
         type: Always 'system'
         message: System message text
+        session_id: Optional session ID for reconnection
     """
 
     type: Literal["system"] = "system"
     message: str = Field(..., description="System notification")
+    session_id: str | None = Field(None, description="Session ID for reconnection")

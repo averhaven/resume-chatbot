@@ -70,38 +70,36 @@ async def send_error_response(
 
 async def process_question(
     question: str,
-    system_prompt: str,
-    system_prompt_tokens: int,
     conversation_manager: DatabaseConversationManager,
+    resume_context: ResumeContext,
     llm_client: OpenRouterClient,
     token_counter: TokenCounter,
 ) -> str:
     """Process a user question and generate LLM response.
 
+    Handles the full question/answer flow: history retrieval, prompt building,
+    LLM call, and message persistence. Caller must commit the transaction.
+
     Args:
         question: User's question text
-        system_prompt: Pre-built system prompt with resume context
-        system_prompt_tokens: Token count of the system prompt
-        conversation_manager: Conversation manager instance
+        conversation_manager: Database-backed conversation manager
+        resume_context: Resume context with system prompt
         llm_client: LLM client instance
         token_counter: Token counter instance for pruning
 
     Returns:
         LLM response text
-
-    Note:
-        Caller must commit the database session.
     """
     settings = get_settings()
 
-    # Get history and prune if needed
+    # Get conversation history
     history = await conversation_manager.get_conversation()
 
     # Prune history to fit within token limits
     pruned_history, tokens_removed = prune_conversation_history(
         history=history,
         token_counter=token_counter,
-        system_tokens=system_prompt_tokens,
+        system_tokens=resume_context.system_prompt_tokens,
         max_tokens=settings.max_context_tokens,
         min_exchanges=settings.min_conversation_exchanges,
         response_reserve=settings.max_response_tokens,
@@ -110,11 +108,12 @@ async def process_question(
     if tokens_removed > 0:
         logger.info(f"Pruned {tokens_removed} tokens from conversation history")
 
-    messages = build_prompt(system_prompt, pruned_history, question)
+    messages = build_prompt(resume_context.system_prompt, pruned_history, question)
 
     logger.info("Calling LLM API")
     response_text = await llm_client.call_llm(messages)
 
+    # Persist messages (caller must commit)
     await conversation_manager.add_message("user", question)
     await conversation_manager.add_message("assistant", response_text)
 
@@ -124,8 +123,7 @@ async def process_question(
 async def handle_websocket_messages(
     websocket: WebSocket,
     conversation_manager: DatabaseConversationManager,
-    system_prompt: str,
-    system_prompt_tokens: int,
+    resume_context: ResumeContext,
     llm_client: OpenRouterClient,
     rate_limiter: WebSocketRateLimiter,
     session_id: str,
@@ -133,14 +131,12 @@ async def handle_websocket_messages(
 ) -> None:
     """Handle WebSocket message loop.
 
-    Extracted from websocket_endpoint to eliminate code duplication.
-    Receives questions, processes them, and sends responses until connection closes.
+    Receives questions, processes them, and sends responses until disconnect.
 
     Args:
         websocket: WebSocket connection
         conversation_manager: Database-backed conversation manager
-        system_prompt: Pre-built system prompt with resume context
-        system_prompt_tokens: Token count of the system prompt
+        resume_context: Resume context with system prompt
         llm_client: LLM client for API calls
         rate_limiter: Rate limiter instance
         session_id: Session ID for rate limiting
@@ -165,15 +161,13 @@ async def handle_websocket_messages(
 
             response_text = await process_question(
                 question_msg.question,
-                system_prompt,
-                system_prompt_tokens,
                 conversation_manager,
+                resume_context,
                 llm_client,
                 token_counter,
             )
 
-            # Commit database transaction
-            await conversation_manager.session.commit()
+            await conversation_manager.commit()
 
             response = ResponseMessage(response=response_text)
             await websocket.send_json(response.model_dump())
@@ -500,40 +494,67 @@ async def get_chat_interface():
 
             <script>
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
                 const messagesDiv = document.getElementById("messages");
                 const messageInput = document.getElementById("messageInput");
                 const sendButton = document.getElementById("sendButton");
 
-                ws.onopen = function(event) {
-                    console.log("WebSocket connected");
-                };
+                let ws = null;
+                let sessionId = null;
+                let reconnectAttempts = 0;
+                const maxReconnectAttempts = 5;
 
-                ws.onmessage = function(event) {
-                    const data = JSON.parse(event.data);
+                function connect() {
+                    const url = sessionId
+                        ? `${protocol}//${window.location.host}/ws?session_id=${sessionId}`
+                        : `${protocol}//${window.location.host}/ws`;
 
-                    if (data.type === "system") {
-                        addMessage(data.message, "system-message");
-                    } else if (data.type === "response") {
-                        addMessage(data.response, "assistant-message");
-                    } else if (data.type === "error") {
-                        addMessage(`Error: ${data.error}`, "error-message");
-                    }
+                    ws = new WebSocket(url);
 
-                    enableInput();
-                };
+                    ws.onopen = function(event) {
+                        console.log("WebSocket connected");
+                        reconnectAttempts = 0;
+                        enableInput();
+                    };
 
-                ws.onerror = function(error) {
-                    console.error("WebSocket error:", error);
-                    addMessage("Connection error. Please refresh the page.", "error-message");
-                    enableInput();
-                };
+                    ws.onmessage = function(event) {
+                        const data = JSON.parse(event.data);
 
-                ws.onclose = function(event) {
-                    console.log("WebSocket disconnected");
-                    addMessage("Disconnected. Please refresh the page.", "error-message");
-                    disableInput();
-                };
+                        if (data.type === "system") {
+                            // Only show welcome message on first connect
+                            if (!sessionId) {
+                                addMessage(data.message, "system-message");
+                            }
+                            // Extract session_id if provided
+                            if (data.session_id) {
+                                sessionId = data.session_id;
+                            }
+                        } else if (data.type === "response") {
+                            addMessage(data.response, "assistant-message");
+                        } else if (data.type === "error") {
+                            addMessage(`Error: ${data.error}`, "error-message");
+                        }
+
+                        enableInput();
+                    };
+
+                    ws.onerror = function(error) {
+                        console.error("WebSocket error:", error);
+                    };
+
+                    ws.onclose = function(event) {
+                        console.log("WebSocket disconnected");
+                        disableInput();
+
+                        if (reconnectAttempts < maxReconnectAttempts) {
+                            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+                            reconnectAttempts++;
+                            addMessage(`Connection lost. Reconnecting in ${delay/1000}s...`, "system-message");
+                            setTimeout(connect, delay);
+                        } else {
+                            addMessage("Unable to reconnect. Please refresh the page.", "error-message");
+                        }
+                    };
+                }
 
                 function addMessage(text, className) {
                     const messageDiv = document.createElement("div");
@@ -545,7 +566,7 @@ async def get_chat_interface():
 
                 function sendMessage() {
                     const message = messageInput.value.trim();
-                    if (message === "" || ws.readyState !== WebSocket.OPEN) {
+                    if (message === "" || !ws || ws.readyState !== WebSocket.OPEN) {
                         return;
                     }
 
@@ -581,8 +602,8 @@ async def get_chat_interface():
                     }
                 });
 
-                // Focus input on load
-                messageInput.focus();
+                // Initial connection
+                connect();
             </script>
         </body>
     </html>
@@ -610,11 +631,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = None
 
     resume_context: ResumeContext = websocket.app.state.resume_context
 
-    welcome = SystemMessage(
-        message="Hi! I'm an AI assistant here to answer questions about Alexandra's resume. Feel free to ask about her experience, skills, or projects."
-    )
-    await websocket.send_json(welcome.model_dump())
-
     # Track the actual session_id (may be generated by manager)
     actual_session_id = session_id
 
@@ -630,14 +646,20 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = None
             set_session_id(actual_session_id)
             logger.info(f"Session established: {actual_session_id}")
 
+            # Send welcome message with session_id for reconnection support
+            welcome = SystemMessage(
+                message="Hi! I'm an AI assistant here to answer questions about Alexandra's resume. Feel free to ask about her experience, skills, or projects.",
+                session_id=actual_session_id,
+            )
+            await websocket.send_json(welcome.model_dump())
+
             rate_limiter: WebSocketRateLimiter = websocket.app.state.rate_limiter
 
             async with create_llm_client() as llm_client:
                 await handle_websocket_messages(
                     websocket,
                     conversation_manager,
-                    resume_context.system_prompt,
-                    resume_context.system_prompt_tokens,
+                    resume_context,
                     llm_client,
                     rate_limiter,
                     actual_session_id,

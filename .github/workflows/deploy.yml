@@ -47,7 +47,7 @@ jobs:
           env_vars: |
             LOG_LEVEL=INFO
             RESUME_PATH=data/resume.json
-            LLM_MODEL=meta-llama/llama-3.2-3b-instruct:free
+            LLM_MODEL=google/gemini-2.5-flash
             LLM_TIMEOUT=60.0
           secrets: |
             DATABASE_URL=neon-database-url:latest
@@ -58,7 +58,7 @@ jobs:
             --max-instances=2
             --memory=512Mi
             --cpu=1
-            --timeout=60s
+            --timeout=900s
 
       - name: Show deployed URL
         run: |

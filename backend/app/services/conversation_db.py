@@ -119,3 +119,7 @@ class DatabaseConversationManager:
             await self._conversation_repo.delete_conversation(self._conversation_id)
             self._conversation_id = None
             logger.info(f"Cleared conversation (session: {self.session_id})")
+
+    async def commit(self) -> None:
+        """Commit the current transaction."""
+        await self.session.commit()
