@@ -83,7 +83,7 @@
   "projects": [
     {
       "name": "Resume Chatbot",
-      "description": "Real-time conversational AI backend that answers questions about resumes using LLM integration and WebSocket communication. Features full context injection, session persistence, exponential backoff retry logic, and 135+ passing tests.",
+      "description": "Real-time conversational AI backend that answers questions about resumes using LLM integration and WebSocket communication. Features full context injection, session persistence, and exponential backoff retry logic.",
       "technologies": ["Python", "FastAPI", "PostgreSQL", "SQLAlchemy", "WebSocket", "OpenRouter API", "Alembic", "httpx"],
       "url": "github.com/averhaven/resume-chatbot"
     },

@@ -4,14 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a production-ready resume chatbot backend using direct LLM API calls with real-time WebSocket communication. The chatbot sends the full resume context along with conversation history to an LLM on each request. The project is being built in phases (see PROJECT_PLAN.md).
+A deployed resume chatbot backend using direct LLM API calls with real-time WebSocket communication. The chatbot sends the full resume context along with conversation history to an LLM on each request.
 
-**Current Status**:
-- ✅ **Phase 1 COMPLETE**: Backend Core & LLM Integration
-- ✅ **Phase 2 COMPLETE**: Database Persistence
-- 🚧 **Phase 3 IN PROGRESS**: Production Features
-
-All core functionality is implemented with 117 passing tests. The system features full end-to-end chat with resume context, PostgreSQL persistence, and session resumption capabilities.
+**Features**: End-to-end chat with resume context, PostgreSQL persistence, session resumption, rate limiting, token management, and input sanitization.
 
 ## Technology Stack
 
@@ -80,15 +75,24 @@ backend/
 │   ├── main.py              # FastAPI application and WebSocket endpoint
 │   ├── core/
 │   │   ├── config.py        # Environment configuration (Pydantic Settings)
-│   │   └── logger.py        # Logging setup
+│   │   ├── context.py       # Session context management (contextvars)
+│   │   ├── errors.py        # Error codes and user-friendly messages
+│   │   ├── logger.py        # Logging setup
+│   │   ├── rate_limit.py    # WebSocket rate limiting (sliding window)
+│   │   └── sanitization.py  # Input sanitization and prompt injection prevention
 │   ├── models/              # Pydantic models for data validation
+│   │   ├── conversation.py  # Conversation data models
 │   │   └── websocket.py     # WebSocket message schemas
 │   ├── services/            # Business logic
-│   │   ├── resume_loader.py # Resume loading and text extraction (Phase 1C)
-│   │   ├── llm_client.py    # OpenRouter API client (Phase 1C)
-│   │   ├── conversation.py  # Conversation state management (Phase 1D)
-│   │   └── prompts.py       # Prompt templates and builders (Phase 1D)
-│   ├── db/                  # Database models and setup (Phase 2)
+│   │   ├── resume_loader.py # Resume loading and text extraction
+│   │   ├── llm_client.py    # OpenRouter API client
+│   │   ├── conversation_db.py # Database-backed conversation management
+│   │   ├── token_counter.py # Token counting with tiktoken
+│   │   └── prompts.py       # Prompt templates and context pruning
+│   ├── db/                  # Database models and setup
+│   │   ├── models.py        # SQLAlchemy ORM models
+│   │   ├── session.py       # Database session management
+│   │   └── repositories/    # Data access layer
 │   └── api/                 # REST API endpoints (future)
 ├── tests/                   # Pytest test suite
 ├── data/                    # Resume data (JSON/YAML/Markdown)
@@ -109,14 +113,15 @@ backend/
 - Use `get_logger(__name__)` to get module-specific loggers
 - Logging is initialized at application startup via `setup_logging()`
 
-### WebSocket Communication (Phase 1B)
+### WebSocket Communication
 - WebSocket endpoint at `/ws` in `app/main.py`
-- Currently implements echo functionality for testing
-- Uses Pydantic models (`WebSocketMessage`) for message validation
+- Full chat functionality with LLM integration and session management
+- Uses Pydantic models (`QuestionMessage`, `ResponseMessage`, `ErrorMessage`) for message validation
 - Proper connection lifecycle: accept → loop → disconnect handling
-- All messages are JSON format: `{"type": "string", "data": "any"}`
+- Rate limiting applied per session
+- Supports session resumption via `session_id` query parameter
 
-### LLM Integration Architecture (Phase 1C-1D)
+### LLM Integration Architecture
 - **Resume Loading**: Load resume file at startup, keep full text in memory
 - **OpenRouter Client**: Direct HTTP API calls using httpx (no LangChain, no embeddings)
 - **Conversation Flow**:
@@ -128,11 +133,19 @@ backend/
   6. Add assistant response to conversation state and commit transaction
 - **Prompt Format**: OpenAI-compatible message format (system/user/assistant roles)
 
-### Database Architecture (Phase 2)
+### Database Architecture
 - **PostgreSQL**: Conversation persistence using Docker for local dev
 - **SQLAlchemy**: Async ORM with asyncpg driver
 - **Schema**: Conversations table + Messages table (role, content, timestamp)
 - **Alembic**: Database migrations
+
+### Production Features
+- **Rate Limiting**: Per-session sliding window limiter (WebSocketRateLimiter in `core/rate_limit.py`)
+- **Token Counting**: tiktoken-based token counting for context window management (`services/token_counter.py`)
+- **Context Pruning**: Automatic conversation history pruning when approaching token limits (`prune_conversation_history`)
+- **Input Sanitization**: Protection against prompt injection attacks (`core/sanitization.py`)
+- **Error Handling**: Centralized error codes with user-friendly messages (`core/errors.py`)
+- **Session Context**: Thread-safe session tracing via contextvars (`core/context.py`)
 
 ## Development Guidelines
 
@@ -161,7 +174,7 @@ backend/
 - Generate session IDs (UUID) on connection for conversation tracking
 - Clean up session state on disconnect
 
-### LLM Integration Guidelines (Phase 1C+)
+### LLM Integration Guidelines
 - Use httpx.AsyncClient for OpenRouter API calls
 - Implement retry logic with exponential backoff for API failures
 - Handle rate limits gracefully (return user-friendly errors)
@@ -175,27 +188,3 @@ backend/
 When the server is running, interactive API docs are available at:
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
-
-## Project Roadmap Context
-
-This project follows a 4-phase development plan (see PROJECT_PLAN.md):
-1. ✅ **Phase 1 COMPLETE**: Backend Core & LLM Integration - FastAPI, WebSocket, resume loading, OpenRouter API, conversation management
-2. ✅ **Phase 2 COMPLETE**: Database Persistence - PostgreSQL (Docker), SQLAlchemy async, Alembic migrations, conversation storage
-3. 🚧 **Phase 3 IN PROGRESS**: Production Features - Rate limiting, token management, error handling, comprehensive documentation
-4. ⏳ **Phase 4 PENDING**: Polish & Testing - Code documentation, architecture diagrams, integration tests, CI/CD
-
-**Current Phase**: Phase 3 (Production Features)
-
-**What's Working:**
-- Full end-to-end chat flow with LLM responses
-- Resume context injection into prompts
-- PostgreSQL-backed conversation persistence
-- Session resumption by session_id
-- Comprehensive error handling for LLM API failures
-- 117 tests passing
-
-**Next Focus Areas:**
-- Rate limiting and API abuse prevention
-- Token counting and context window management
-- Enhanced health checks with database connectivity
-- Production-ready documentation
