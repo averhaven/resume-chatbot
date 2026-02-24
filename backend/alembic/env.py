@@ -14,6 +14,7 @@ from app.db.base import Base
 from app.db.models import (  # noqa: F401 - Import all models for Alembic autogenerate
     Conversation,
     Message,
+    User,
 )
 
 # Alembic Config object

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
@@ -57,7 +58,20 @@ def setup_test_database(event_loop):
     get_settings.cache_clear()
 
     # Create shared engine and session factory
-    TestDatabase.engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    # Enable foreign key support for SQLite
+    TestDatabase.engine = create_async_engine(
+        TEST_DATABASE_URL,
+        echo=False,
+        connect_args={"check_same_thread": False},
+    )
+
+    # Enable foreign key constraints in SQLite
+    @event.listens_for(TestDatabase.engine.sync_engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     TestDatabase.session_factory = async_sessionmaker(
         TestDatabase.engine,
         class_=AsyncSession,
@@ -116,6 +130,7 @@ def clean_test_database(event_loop):
             return
         async with TestDatabase.engine.begin() as conn:
             # Delete all data from tables (order matters due to foreign keys)
+            # Delete in reverse dependency order: messages -> conversations -> users
             await conn.run_sync(
                 lambda sync_conn: sync_conn.execute(
                     Base.metadata.tables["messages"].delete()
@@ -124,6 +139,11 @@ def clean_test_database(event_loop):
             await conn.run_sync(
                 lambda sync_conn: sync_conn.execute(
                     Base.metadata.tables["conversations"].delete()
+                )
+            )
+            await conn.run_sync(
+                lambda sync_conn: sync_conn.execute(
+                    Base.metadata.tables["users"].delete()
                 )
             )
 
