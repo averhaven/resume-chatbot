@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
+from app.api.auth import router as auth_router
 from app.core.config import get_settings, validate_settings
 from app.core.context import set_session_id
 from app.core.errors import ErrorCode, get_user_message
@@ -277,6 +278,8 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+app.include_router(auth_router)
 
 
 @app.get("/health")

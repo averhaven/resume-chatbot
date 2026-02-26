@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     database_pool_size: int = 2  # Reduced for serverless environments
     database_max_overflow: int = 3  # Reduced for serverless environments
 
+    # JWT Authentication
+    jwt_secret_key: str = "dev-secret-key-change-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 30
+
     # Rate Limiting
     rate_limit_requests_per_minute: int = 20
 
