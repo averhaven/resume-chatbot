@@ -334,6 +334,24 @@ class ResumeContext:
         """
         loader = create_resume_loader(path)
         resume_text = loader.get_resume_text()
+        return cls.from_text(resume_text, token_counter)
+
+    @classmethod
+    def from_text(
+        cls, resume_text: str, token_counter: TokenCounter
+    ) -> "ResumeContext":
+        """Create a ResumeContext from already-extracted resume text.
+
+        Use this for multi-tenant flows where resume content is stored
+        in the database after extraction from any file format.
+
+        Args:
+            resume_text: Pre-extracted resume text content
+            token_counter: TokenCounter instance for counting tokens
+
+        Returns:
+            ResumeContext with built system prompt and token count
+        """
         system_prompt = build_system_prompt(resume_text)
         system_prompt_tokens = token_counter.count_tokens(system_prompt)
 

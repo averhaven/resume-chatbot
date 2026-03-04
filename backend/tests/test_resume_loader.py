@@ -7,10 +7,12 @@ from pathlib import Path
 import pytest
 
 from app.services.resume_loader import (
+    ResumeContext,
     ResumeLoader,
     ResumeLoadError,
     create_resume_loader,
 )
+from app.services.token_counter import TokenCounter
 
 
 @pytest.fixture
@@ -216,6 +218,31 @@ def test_create_resume_loader_invalid_file():
     """Test factory function with invalid file."""
     with pytest.raises(ResumeLoadError):
         create_resume_loader("nonexistent_file.json")
+
+
+class TestResumeContextFromText:
+    """Tests for ResumeContext.from_text()."""
+
+    def test_from_text_builds_prompt(self):
+        """from_text() builds a system prompt containing the resume text."""
+        token_counter = TokenCounter()
+        resume_text = "# Jane Doe\n## Software Engineer\n\nExperienced developer."
+
+        ctx = ResumeContext.from_text(resume_text, token_counter)
+
+        assert "Jane Doe" in ctx.system_prompt
+        assert "Software Engineer" in ctx.system_prompt
+        assert ctx.system_prompt_tokens > 0
+
+    def test_from_text_token_count_matches(self):
+        """Token count from from_text() matches manual count."""
+        token_counter = TokenCounter()
+        resume_text = "Simple resume content for testing."
+
+        ctx = ResumeContext.from_text(resume_text, token_counter)
+
+        expected = token_counter.count_tokens(ctx.system_prompt)
+        assert ctx.system_prompt_tokens == expected
 
 
 def test_resume_with_projects_and_certifications():

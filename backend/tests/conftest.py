@@ -10,6 +10,7 @@ import pytest_asyncio
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+import app.db.models  # noqa: F401 — ensure all ORM models are registered with Base.metadata
 from app.core.config import get_settings
 from app.db.base import Base
 

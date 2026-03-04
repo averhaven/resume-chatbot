@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 30
 
+    # Resume Upload
+    max_resume_file_size: int = 5 * 1024 * 1024  # 5 MB
+
     # Rate Limiting
     rate_limit_requests_per_minute: int = 20
 
