@@ -52,6 +52,7 @@ jobs:
           secrets: |
             DATABASE_URL=neon-database-url:latest
             OPENROUTER_API_KEY=openrouter-api-key:latest
+            JWT_SECRET_KEY=jwt-secret-key:latest
           flags: |
             --allow-unauthenticated
             --min-instances=0

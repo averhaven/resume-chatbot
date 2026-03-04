@@ -193,6 +193,11 @@ echo -n "sk-or-your-openrouter-key" | \
   gcloud secrets create openrouter-api-key \
   --data-file=- \
   --project=$PROJECT_ID
+
+openssl rand -hex 32 | \
+  gcloud secrets create jwt-secret-key \
+  --data-file=- \
+  --project=$PROJECT_ID
 ```
 
 ---
@@ -291,7 +296,7 @@ gcloud run deploy resume-chatbot \
   --platform=managed \
   --allow-unauthenticated \
   --set-env-vars="LOG_LEVEL=INFO,RESUME_PATH=data/resume.json,LLM_MODEL=google/gemini-2.5-flash,LLM_TIMEOUT=60.0" \
-  --set-secrets="DATABASE_URL=neon-database-url:latest,OPENROUTER_API_KEY=openrouter-api-key:latest" \
+  --set-secrets="DATABASE_URL=neon-database-url:latest,OPENROUTER_API_KEY=openrouter-api-key:latest,JWT_SECRET_KEY=jwt-secret-key:latest" \
   --project=$PROJECT_ID
 ```
 
