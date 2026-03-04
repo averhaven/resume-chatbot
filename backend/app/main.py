@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from app.api.auth import router as auth_router
+from app.api.resumes import router as resumes_router
 from app.core.config import get_settings, validate_settings
 from app.core.context import set_session_id
 from app.core.errors import ErrorCode, get_user_message
@@ -280,6 +281,7 @@ app = FastAPI(
 )
 
 app.include_router(auth_router)
+app.include_router(resumes_router)
 
 
 @app.get("/health")
