@@ -28,15 +28,18 @@ class DatabaseConversationManager:
         self,
         session: AsyncSession,
         session_id: str | None = None,
+        user_id: UUID | None = None,
     ):
         """Initialize database conversation manager.
 
         Args:
             session: SQLAlchemy async session
             session_id: Optional session ID (generates new UUID if not provided)
+            user_id: Optional user ID for tenant isolation
         """
         self.session = session
         self.session_id = session_id or str(uuid4())
+        self.user_id = user_id
         self._conversation_id: UUID | None = None
         self._conversation_repo = ConversationRepository(session)
         self._message_repo = MessageRepository(session)
@@ -52,11 +55,13 @@ class DatabaseConversationManager:
         if self._conversation_id:
             return self._conversation_id
 
-        conversation = await self._conversation_repo.get_by_session_id(self.session_id)
+        conversation = await self._conversation_repo.get_by_session_id(
+            self.session_id, user_id=self.user_id
+        )
 
         if not conversation:
             conversation = await self._conversation_repo.create_conversation(
-                session_id=self.session_id
+                session_id=self.session_id, user_id=self.user_id
             )
 
         self._conversation_id = conversation.id
@@ -83,7 +88,9 @@ class DatabaseConversationManager:
         await self._message_repo.add_message(
             conversation_id=conversation_id, role=role, content=content
         )
-        await self._conversation_repo.update_timestamp(conversation_id)
+        await self._conversation_repo.update_timestamp(
+            conversation_id, user_id=self.user_id
+        )
 
         logger.debug(f"Added {role} message ({len(content)} chars)")
 
@@ -116,7 +123,9 @@ class DatabaseConversationManager:
             Caller must commit the transaction.
         """
         if self._conversation_id:
-            await self._conversation_repo.delete_conversation(self._conversation_id)
+            await self._conversation_repo.delete_conversation(
+                self._conversation_id, user_id=self.user_id
+            )
             self._conversation_id = None
             logger.info(f"Cleared conversation (session: {self.session_id})")
 
