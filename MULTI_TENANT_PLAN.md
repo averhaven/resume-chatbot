@@ -100,7 +100,7 @@ Transform the single-tenant resume chatbot into a multi-tenant SaaS platform whe
 
 ---
 
-### Task 5: Dynamic WebSocket Routing
+### Task 5: Dynamic WebSocket Routing ✅
 **Goal:** Route WebSocket connections to the correct user's resume based on URL
 
 **Changes:**
@@ -220,8 +220,8 @@ Execute tasks in numerical order (1 → 9):
 1. ✅ Database changes first (foundation)
 2. ✅ Authentication next (required for all other features)
 3. ✅ Resume upload (core feature)
-4. Data isolation (security critical)
-5. Dynamic routing (enables multi-tenant chatbot)
+4. ✅ Data isolation (security critical)
+5. ✅ Dynamic routing (enables multi-tenant chatbot)
 6. Resume loading (performance optimization)
 7. Dashboard API (user-facing features)
 8. Rate limiting (production readiness)

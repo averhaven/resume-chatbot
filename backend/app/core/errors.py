@@ -32,6 +32,11 @@ class ErrorCode(str, Enum):
     # Database errors
     DATABASE_ERROR = "DATABASE_ERROR"
 
+    # User/tenant errors
+    USER_NOT_FOUND = "USER_NOT_FOUND"
+    NO_RESUME = "NO_RESUME"
+    CHAT_DISABLED = "CHAT_DISABLED"
+
     # General errors
     INTERNAL_ERROR = "INTERNAL_ERROR"
 
@@ -61,6 +66,10 @@ USER_FRIENDLY_MESSAGES: dict[ErrorCode | str, str] = {
     ErrorCode.DATABASE_ERROR: (
         "We're experiencing technical difficulties. Please try again shortly."
     ),
+    # User/tenant errors
+    ErrorCode.USER_NOT_FOUND: "The requested user was not found.",
+    ErrorCode.NO_RESUME: "This user hasn't uploaded a resume yet.",
+    ErrorCode.CHAT_DISABLED: "This user's chat is currently disabled.",
     # General
     ErrorCode.INTERNAL_ERROR: ("An unexpected error occurred. Please try again."),
 }

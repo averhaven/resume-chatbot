@@ -14,6 +14,7 @@ from app.core.context import set_session_id
 from app.core.errors import ErrorCode, get_user_message
 from app.core.logger import get_logger, setup_logging
 from app.core.rate_limit import WebSocketRateLimiter
+from app.db.repositories.user import UserRepository
 from app.db.session import DatabaseManager
 from app.models.websocket import (
     ErrorMessage,
@@ -336,21 +337,29 @@ async def health_check(deep: bool = False):
     return JSONResponse(content=status, status_code=http_status)
 
 
-@app.get("/", response_class=HTMLResponse)
-async def get_chat_interface():
-    """Serve simple HTML chat interface for testing the WebSocket chatbot."""
-    return """
+def _render_chat_html(
+    title: str, heading: str, subheading: str, placeholder: str
+) -> str:
+    """Render the chat interface HTML with the given header content.
+
+    Args:
+        title: Browser tab title
+        heading: Main heading displayed in the chat header
+        subheading: Subheading text beneath the heading
+        placeholder: Input field placeholder text
+    """
+    return f"""
     <!DOCTYPE html>
     <html>
         <head>
-            <title>Alexandra Verhaven | Resume Chat</title>
+            <title>{title}</title>
             <style>
-                * {
+                * {{
                     margin: 0;
                     padding: 0;
                     box-sizing: border-box;
-                }
-                body {
+                }}
+                body {{
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                     height: 100vh;
@@ -358,8 +367,8 @@ async def get_chat_interface():
                     justify-content: center;
                     align-items: center;
                     padding: 20px;
-                }
-                .container {
+                }}
+                .container {{
                     background: white;
                     border-radius: 12px;
                     box-shadow: 0 20px 60px rgba(0,0,0,0.3);
@@ -368,80 +377,75 @@ async def get_chat_interface():
                     height: 600px;
                     display: flex;
                     flex-direction: column;
-                }
-                .header {
+                }}
+                .header {{
                     padding: 20px;
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                     color: white;
                     border-radius: 12px 12px 0 0;
                     text-align: center;
-                }
-                .header h1 {
+                }}
+                .header h1 {{
                     font-size: 24px;
                     font-weight: 600;
-                }
-                .header p {
+                }}
+                .header p {{
                     font-size: 14px;
                     opacity: 0.9;
                     margin-top: 5px;
-                }
-                .header .tagline {
-                    font-size: 12px;
-                    opacity: 0.75;
-                    margin-top: 8px;
-                }
-                #messages {
+                }}
+                #messages {{
                     flex: 1;
                     overflow-y: auto;
                     padding: 20px;
                     display: flex;
                     flex-direction: column;
                     gap: 12px;
-                }
-                .message {
+                }}
+                .message {{
                     padding: 12px 16px;
                     border-radius: 8px;
                     max-width: 80%;
                     word-wrap: break-word;
                     animation: fadeIn 0.3s;
-                }
-                @keyframes fadeIn {
-                    from { opacity: 0; transform: translateY(10px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-                .user-message {
+                }}
+                @keyframes fadeIn {{
+                    from {{ opacity: 0; transform: translateY(10px); }}
+                    to {{ opacity: 1; transform: translateY(0); }}
+                }}
+                .user-message {{
                     background: #667eea;
                     color: white;
                     align-self: flex-end;
                     margin-left: auto;
-                }
-                .assistant-message {
+                }}
+                .assistant-message {{
                     background: #f3f4f6;
                     color: #1f2937;
                     align-self: flex-start;
-                }
-                .system-message {
+                }}
+                .system-message {{
                     background: #dbeafe;
                     color: #1e40af;
                     align-self: center;
                     text-align: center;
                     font-size: 14px;
                     font-style: italic;
-                }
-                .error-message {
+                }}
+                .error-message {{
                     background: #fee2e2;
                     color: #991b1b;
                     align-self: center;
                     text-align: center;
                     font-size: 14px;
-                }
-                .input-area {
+                }}
+                .input-area {{
                     padding: 20px;
                     border-top: 1px solid #e5e7eb;
                     display: flex;
                     gap: 10px;
-                }
-                #messageInput {
+                }}
+                #messageInput {{
                     flex: 1;
                     padding: 12px;
                     border: 2px solid #e5e7eb;
@@ -449,11 +453,11 @@ async def get_chat_interface():
                     font-size: 14px;
                     outline: none;
                     transition: border-color 0.2s;
-                }
-                #messageInput:focus {
+                }}
+                #messageInput:focus {{
                     border-color: #667eea;
-                }
-                button {
+                }}
+                button {{
                     padding: 12px 24px;
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                     color: white;
@@ -463,34 +467,33 @@ async def get_chat_interface():
                     font-weight: 600;
                     cursor: pointer;
                     transition: transform 0.2s, box-shadow 0.2s;
-                }
-                button:hover {
+                }}
+                button:hover {{
                     transform: translateY(-2px);
                     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-                }
-                button:active {
+                }}
+                button:active {{
                     transform: translateY(0);
-                }
-                button:disabled {
+                }}
+                button:disabled {{
                     opacity: 0.5;
                     cursor: not-allowed;
                     transform: none;
-                }
+                }}
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>Alexandra Verhaven</h1>
-                    <p>Ask me anything about my background, skills, and experience</p>
-                    <p class="tagline">Software Developer seeking new opportunities</p>
+                    <h1>{heading}</h1>
+                    <p>{subheading}</p>
                 </div>
                 <div id="messages"></div>
                 <div class="input-area">
                     <input
                         type="text"
                         id="messageInput"
-                        placeholder="e.g., What technologies has Alexandra worked with?"
+                        placeholder="{placeholder}"
                         autocomplete="off"
                     />
                     <button onclick="sendMessage()" id="sendButton">Send</button>
@@ -508,104 +511,105 @@ async def get_chat_interface():
                 let reconnectAttempts = 0;
                 const maxReconnectAttempts = 5;
 
-                function connect() {
+                function connect() {{
+                    const basePath = window.location.pathname === '/' ? '/ws' : window.location.pathname;
                     const url = sessionId
-                        ? `${protocol}//${window.location.host}/ws?session_id=${sessionId}`
-                        : `${protocol}//${window.location.host}/ws`;
+                        ? `${{protocol}}//${{window.location.host}}${{basePath}}?session_id=${{sessionId}}`
+                        : `${{protocol}}//${{window.location.host}}${{basePath}}`;
 
                     ws = new WebSocket(url);
 
-                    ws.onopen = function(event) {
+                    ws.onopen = function(event) {{
                         console.log("WebSocket connected");
                         reconnectAttempts = 0;
                         enableInput();
-                    };
+                    }};
 
-                    ws.onmessage = function(event) {
+                    ws.onmessage = function(event) {{
                         const data = JSON.parse(event.data);
 
-                        if (data.type === "system") {
+                        if (data.type === "system") {{
                             // Only show welcome message on first connect
-                            if (!sessionId) {
+                            if (!sessionId) {{
                                 addMessage(data.message, "system-message");
-                            }
+                            }}
                             // Extract session_id if provided
-                            if (data.session_id) {
+                            if (data.session_id) {{
                                 sessionId = data.session_id;
-                            }
-                        } else if (data.type === "response") {
+                            }}
+                        }} else if (data.type === "response") {{
                             addMessage(data.response, "assistant-message");
-                        } else if (data.type === "error") {
-                            addMessage(`Error: ${data.error}`, "error-message");
-                        }
+                        }} else if (data.type === "error") {{
+                            addMessage(`Error: ${{data.error}}`, "error-message");
+                        }}
 
                         enableInput();
-                    };
+                    }};
 
-                    ws.onerror = function(error) {
+                    ws.onerror = function(error) {{
                         console.error("WebSocket error:", error);
-                    };
+                    }};
 
-                    ws.onclose = function(event) {
+                    ws.onclose = function(event) {{
                         console.log("WebSocket disconnected");
                         disableInput();
 
-                        if (reconnectAttempts < maxReconnectAttempts) {
+                        if (reconnectAttempts < maxReconnectAttempts) {{
                             const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
                             reconnectAttempts++;
-                            addMessage(`Connection lost. Reconnecting in ${delay/1000}s...`, "system-message");
+                            addMessage(`Connection lost. Reconnecting in ${{delay/1000}}s...`, "system-message");
                             setTimeout(connect, delay);
-                        } else {
+                        }} else {{
                             addMessage("Unable to reconnect. Please refresh the page.", "error-message");
-                        }
-                    };
-                }
+                        }}
+                    }};
+                }}
 
-                function addMessage(text, className) {
+                function addMessage(text, className) {{
                     const messageDiv = document.createElement("div");
-                    messageDiv.className = `message ${className}`;
+                    messageDiv.className = `message ${{className}}`;
                     messageDiv.textContent = text;
                     messagesDiv.appendChild(messageDiv);
                     messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                }
+                }}
 
-                function sendMessage() {
+                function sendMessage() {{
                     const message = messageInput.value.trim();
-                    if (message === "" || !ws || ws.readyState !== WebSocket.OPEN) {
+                    if (message === "" || !ws || ws.readyState !== WebSocket.OPEN) {{
                         return;
-                    }
+                    }}
 
                     // Display user message
                     addMessage(message, "user-message");
 
                     // Send to WebSocket
-                    ws.send(JSON.stringify({
+                    ws.send(JSON.stringify({{
                         type: "question",
                         question: message
-                    }));
+                    }}));
 
                     // Clear input and disable until response
                     messageInput.value = "";
                     disableInput();
-                }
+                }}
 
-                function disableInput() {
+                function disableInput() {{
                     messageInput.disabled = true;
                     sendButton.disabled = true;
-                }
+                }}
 
-                function enableInput() {
+                function enableInput() {{
                     messageInput.disabled = false;
                     sendButton.disabled = false;
                     messageInput.focus();
-                }
+                }}
 
                 // Send message on Enter key
-                messageInput.addEventListener("keypress", function(event) {
-                    if (event.key === "Enter") {
+                messageInput.addEventListener("keypress", function(event) {{
+                    if (event.key === "Enter") {{
                         sendMessage();
-                    }
-                });
+                    }}
+                }});
 
                 // Initial connection
                 connect();
@@ -613,6 +617,28 @@ async def get_chat_interface():
         </body>
     </html>
     """
+
+
+@app.get("/", response_class=HTMLResponse)
+async def get_chat_interface():
+    """Serve HTML chat interface for the default (Alexandra's) resume chatbot."""
+    return _render_chat_html(
+        title="Alexandra Verhaven | Resume Chat",
+        heading="Alexandra Verhaven",
+        subheading="Ask me anything about my background, skills, and experience",
+        placeholder="e.g., What technologies has Alexandra worked with?",
+    )
+
+
+@app.get("/chat/{username}", response_class=HTMLResponse)
+async def get_user_chat_interface(username: str):
+    """Serve HTML chat interface for a specific user's resume chatbot."""
+    return _render_chat_html(
+        title=f"{username} | Resume Chat",
+        heading=username,
+        subheading="Ask me anything about their background, skills, and experience",
+        placeholder=f"e.g., What technologies has {username} worked with?",
+    )
 
 
 @app.websocket("/ws")
@@ -689,3 +715,114 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str | None = None
         if actual_session_id:
             await websocket.app.state.rate_limiter.reset(actual_session_id)
         logger.info(f"Connection closed (session: {actual_session_id})")
+
+
+@app.websocket("/chat/{username}")
+async def chat_websocket_endpoint(
+    websocket: WebSocket, username: str, session_id: str | None = None
+):
+    """WebSocket endpoint for per-user resume chatbot.
+
+    Routes to a specific user's resume based on their username.
+    The conversation is linked to the resume owner's user_id.
+
+    Args:
+        websocket: WebSocket connection
+        username: Username to look up (from URL path)
+        session_id: Optional session ID for resuming conversations
+    """
+    await websocket.accept()
+
+    logger.info(
+        f"Client connected to /chat/{username} (session_id param: {session_id})"
+    )
+
+    db_manager: DatabaseManager = websocket.app.state.db_manager
+    token_counter: TokenCounter = websocket.app.state.token_counter
+    actual_session_id = session_id
+
+    try:
+        async with db_manager.get_session() as db_session:
+            # Look up user by username
+            user_repo = UserRepository(db_session)
+            user = await user_repo.get_by_username(username)
+
+            if not user:
+                error = ErrorMessage(
+                    error=get_user_message(ErrorCode.USER_NOT_FOUND),
+                    code=ErrorCode.USER_NOT_FOUND.value,
+                )
+                await websocket.send_json(error.model_dump())
+                await websocket.close(code=4004, reason="User not found")
+                return
+
+            if not user.resume_content:
+                error = ErrorMessage(
+                    error=get_user_message(ErrorCode.NO_RESUME),
+                    code=ErrorCode.NO_RESUME.value,
+                )
+                await websocket.send_json(error.model_dump())
+                await websocket.close(code=4004, reason="No resume uploaded")
+                return
+
+            if not user.chat_enabled:
+                error = ErrorMessage(
+                    error=get_user_message(ErrorCode.CHAT_DISABLED),
+                    code=ErrorCode.CHAT_DISABLED.value,
+                )
+                await websocket.send_json(error.model_dump())
+                await websocket.close(code=4003, reason="Chat disabled")
+                return
+
+            # Build resume context from user's stored resume content
+            resume_context = ResumeContext.from_text(user.resume_content, token_counter)
+
+            # Create conversation manager linked to this user
+            conversation_manager = DatabaseConversationManager(
+                db_session, session_id, user_id=user.id
+            )
+            actual_session_id = conversation_manager.session_id
+            set_session_id(actual_session_id)
+            logger.info(f"Session established: {actual_session_id} (user: {username})")
+
+            # Send welcome message
+            welcome = SystemMessage(
+                message=f"Hi! I'm an AI assistant here to answer questions about {user.username}'s resume. Feel free to ask about their experience, skills, or projects.",
+                session_id=actual_session_id,
+            )
+            await websocket.send_json(welcome.model_dump())
+
+            rate_limiter: WebSocketRateLimiter = websocket.app.state.rate_limiter
+
+            async with create_llm_client() as llm_client:
+                await handle_websocket_messages(
+                    websocket,
+                    conversation_manager,
+                    resume_context,
+                    llm_client,
+                    rate_limiter,
+                    actual_session_id,
+                    token_counter,
+                )
+
+    except WebSocketDisconnect:
+        logger.info(
+            f"Client disconnected from /chat/{username} (session: {actual_session_id})"
+        )
+
+    except OperationalError as e:
+        logger.error(
+            f"Database error (session: {actual_session_id}): {e}", exc_info=True
+        )
+
+    except Exception as e:
+        logger.error(
+            f"WebSocket error (session: {actual_session_id}): {e}", exc_info=True
+        )
+
+    finally:
+        if actual_session_id:
+            await websocket.app.state.rate_limiter.reset(actual_session_id)
+        logger.info(
+            f"Connection closed for /chat/{username} (session: {actual_session_id})"
+        )
