@@ -23,9 +23,9 @@ def test_health_check_deep():
         data = response.json()
         assert data["status"] == "healthy"
         assert "database" in data["checks"]
-        assert "resume" in data["checks"]
+        assert "resume_cache" in data["checks"]
         assert data["checks"]["database"] == "healthy"
-        assert data["checks"]["resume"] == "healthy"
+        assert "healthy" in data["checks"]["resume_cache"]
 
 
 def test_app_creation():

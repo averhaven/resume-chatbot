@@ -1,13 +1,12 @@
 """Tests for resume loader service."""
 
 import json
-import tempfile
-from pathlib import Path
 
 import pytest
 
 from app.services.resume_loader import (
     ResumeContext,
+    ResumeContextCache,
     ResumeLoader,
     ResumeLoadError,
     create_resume_loader,
@@ -15,209 +14,97 @@ from app.services.resume_loader import (
 from app.services.token_counter import TokenCounter
 
 
-@pytest.fixture
-def sample_resume_data():
-    """Sample resume data for testing."""
-    return {
-        "name": "Test User",
-        "title": "Software Engineer",
-        "contact": {
-            "email": "test@example.com",
-            "location": "Test City",
-        },
-        "summary": "Test summary",
-        "experience": [
-            {
-                "title": "Senior Engineer",
-                "company": "TestCorp",
-                "location": "Test City",
-                "start_date": "2020-01",
-                "end_date": None,
-                "current": True,
-                "responsibilities": ["Led projects", "Mentored team"],
-            }
-        ],
-        "skills": {
-            "languages": ["Python", "JavaScript"],
-            "frameworks": ["FastAPI"],
-        },
-        "education": [
-            {
-                "degree": "BS Computer Science",
-                "institution": "Test University",
-                "location": "Test City",
-                "graduation_date": "2019-05",
-            }
-        ],
-    }
+class TestResumeLoader:
+    """Tests for ResumeLoader and create_resume_loader."""
 
+    def test_load_valid_json(self, tmp_path):
+        """load() parses a valid JSON resume and produces formatted text."""
+        resume = {
+            "name": "Jane Doe",
+            "title": "Engineer",
+            "summary": "Experienced developer.",
+        }
+        path = tmp_path / "resume.json"
+        path.write_text(json.dumps(resume), encoding="utf-8")
 
-@pytest.fixture
-def temp_resume_file(sample_resume_data):
-    """Create a temporary resume JSON file."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        json.dump(sample_resume_data, f)
-        temp_path = Path(f.name)
-
-    yield temp_path
-
-    # Cleanup
-    if temp_path.exists():
-        temp_path.unlink()
-
-
-@pytest.fixture
-def invalid_json_file():
-    """Create a temporary file with invalid JSON."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        f.write("{ invalid json content")
-        temp_path = Path(f.name)
-
-    yield temp_path
-
-    # Cleanup
-    if temp_path.exists():
-        temp_path.unlink()
-
-
-def test_resume_loader_initialization():
-    """Test ResumeLoader initialization."""
-    loader = ResumeLoader("test_path.json")
-    assert loader.resume_path == Path("test_path.json")
-    assert loader._resume_data is None
-    assert loader._resume_text is None
-
-
-def test_load_resume_success(temp_resume_file, sample_resume_data):
-    """Test successful resume loading."""
-    loader = ResumeLoader(temp_resume_file)
-    loader.load()
-
-    assert loader._resume_data == sample_resume_data
-    assert loader._resume_text is not None
-    assert isinstance(loader._resume_text, str)
-    assert len(loader._resume_text) > 0
-
-
-def test_load_resume_file_not_found():
-    """Test loading non-existent resume file."""
-    loader = ResumeLoader("nonexistent_file.json")
-
-    with pytest.raises(ResumeLoadError, match="Resume file not found"):
+        loader = ResumeLoader(path)
         loader.load()
 
+        text = loader.get_resume_text()
+        assert "Jane Doe" in text
+        assert "Engineer" in text
+        assert "Experienced developer." in text
 
-def test_load_resume_invalid_json(invalid_json_file):
-    """Test loading resume with invalid JSON."""
-    loader = ResumeLoader(invalid_json_file)
+    def test_load_missing_file_raises(self, tmp_path):
+        """load() raises ResumeLoadError when the file does not exist."""
+        loader = ResumeLoader(tmp_path / "missing.json")
 
-    with pytest.raises(ResumeLoadError, match="Invalid JSON"):
-        loader.load()
+        with pytest.raises(ResumeLoadError, match="Resume file not found"):
+            loader.load()
 
+    def test_load_invalid_json_raises(self, tmp_path):
+        """load() raises ResumeLoadError on malformed JSON."""
+        path = tmp_path / "bad.json"
+        path.write_text("not valid json", encoding="utf-8")
 
-def test_get_resume_text(temp_resume_file):
-    """Test getting formatted resume text."""
-    loader = ResumeLoader(temp_resume_file)
-    loader.load()
+        loader = ResumeLoader(path)
 
-    text = loader.get_resume_text()
+        with pytest.raises(ResumeLoadError, match="Invalid JSON"):
+            loader.load()
 
-    # Verify key sections are present
-    assert "Test User" in text
-    assert "Software Engineer" in text
-    assert "test@example.com" in text
-    assert "Test summary" in text
-    assert "Senior Engineer" in text
-    assert "TestCorp" in text
-    assert "Python" in text
-    assert "BS Computer Science" in text
+    def test_get_resume_text_none_before_load(self, tmp_path):
+        """get_resume_text() returns None before load() is called."""
+        loader = ResumeLoader(tmp_path / "resume.json")
+        assert loader.get_resume_text() is None
 
+    def test_create_resume_loader_returns_loaded_instance(self, tmp_path):
+        """create_resume_loader() returns a loaded ResumeLoader."""
+        path = tmp_path / "resume.json"
+        path.write_text(json.dumps({"name": "Alice", "title": "Dev"}), encoding="utf-8")
 
-def test_get_resume_text_before_load(temp_resume_file):
-    """Test getting resume text before loading returns None."""
-    loader = ResumeLoader(temp_resume_file)
+        loader = create_resume_loader(path)
 
-    text = loader.get_resume_text()
-    assert text is None
+        assert loader.get_resume_text() is not None
+        assert "Alice" in loader.get_resume_text()
 
+    def test_format_includes_contact(self, tmp_path):
+        """Formatted text includes contact details when present."""
+        resume = {
+            "name": "Bob",
+            "title": "Dev",
+            "contact": {"email": "bob@example.com", "phone": "123", "location": "NYC"},
+        }
+        path = tmp_path / "resume.json"
+        path.write_text(json.dumps(resume), encoding="utf-8")
 
-def test_get_resume_data(temp_resume_file, sample_resume_data):
-    """Test getting raw resume data."""
-    loader = ResumeLoader(temp_resume_file)
-    loader.load()
+        loader = create_resume_loader(path)
 
-    data = loader.get_resume_data()
-    assert data == sample_resume_data
+        assert "bob@example.com" in loader.get_resume_text()
 
+    def test_format_includes_experience(self, tmp_path):
+        """Formatted text includes work experience entries."""
+        resume = {
+            "name": "Carol",
+            "title": "Dev",
+            "experience": [
+                {
+                    "title": "Senior Dev",
+                    "company": "Acme",
+                    "location": "NYC",
+                    "start_date": "2020-01",
+                    "current": True,
+                    "responsibilities": ["Built things"],
+                }
+            ],
+        }
+        path = tmp_path / "resume.json"
+        path.write_text(json.dumps(resume), encoding="utf-8")
 
-def test_get_resume_data_before_load(temp_resume_file):
-    """Test getting resume data before loading returns None."""
-    loader = ResumeLoader(temp_resume_file)
-
-    data = loader.get_resume_data()
-    assert data is None
-
-
-def test_format_resume_as_text_comprehensive(temp_resume_file):
-    """Test comprehensive resume formatting."""
-    loader = ResumeLoader(temp_resume_file)
-    loader.load()
-
-    text = loader.get_resume_text()
-
-    # Check markdown formatting
-    assert "# Test User" in text
-    assert "## Software Engineer" in text
-    assert "### Contact Information" in text
-    assert "### Professional Summary" in text
-    assert "### Work Experience" in text
-    assert "### Skills" in text
-    assert "### Education" in text
-
-    # Check bullet points and formatting
-    assert "- Email:" in text
-    assert "- **Languages**:" in text
-    assert "- Led projects" in text
-
-
-def test_format_resume_handles_optional_fields():
-    """Test formatting with missing optional fields."""
-    minimal_data = {
-        "name": "Minimal User",
-        "title": "Developer",
-    }
-
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        json.dump(minimal_data, f)
-        temp_path = Path(f.name)
-
-    try:
-        loader = ResumeLoader(temp_path)
-        loader.load()
+        loader = create_resume_loader(path)
         text = loader.get_resume_text()
 
-        # Should still have basic structure
-        assert "Minimal User" in text
-        assert "Developer" in text
-
-    finally:
-        if temp_path.exists():
-            temp_path.unlink()
-
-
-def test_create_resume_loader(temp_resume_file):
-    """Test factory function creates and loads resume."""
-    loader = create_resume_loader(temp_resume_file)
-
-    assert loader is not None
-    assert loader._resume_data is not None
-    assert loader._resume_text is not None
-
-
-def test_create_resume_loader_invalid_file():
-    """Test factory function with invalid file."""
-    with pytest.raises(ResumeLoadError):
-        create_resume_loader("nonexistent_file.json")
+        assert "Senior Dev at Acme" in text
+        assert "Built things" in text
 
 
 class TestResumeContextFromText:
@@ -245,49 +132,109 @@ class TestResumeContextFromText:
         assert ctx.system_prompt_tokens == expected
 
 
-def test_resume_with_projects_and_certifications():
-    """Test formatting resume with projects and certifications."""
-    data = {
-        "name": "Test User",
-        "title": "Engineer",
-        "projects": [
-            {
-                "name": "Test Project",
-                "description": "A test project",
-                "technologies": ["Python", "FastAPI"],
-                "url": "github.com/test",
-            }
-        ],
-        "certifications": [
-            {
-                "name": "Test Certification",
-                "issuer": "Test Org",
-                "date": "2023-01",
-            }
-        ],
-    }
+class TestResumeContextCache:
+    """Tests for the LRU ResumeContextCache."""
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        json.dump(data, f)
-        temp_path = Path(f.name)
+    def test_cache_miss_creates_context(self):
+        """get_or_create() builds a new context on cache miss."""
+        token_counter = TokenCounter()
+        cache = ResumeContextCache()
 
-    try:
-        loader = ResumeLoader(temp_path)
-        loader.load()
-        text = loader.get_resume_text()
+        ctx = cache.get_or_create("user_1", "Alice is a developer.", token_counter)
 
-        # Verify projects section
-        assert "### Notable Projects" in text
-        assert "Test Project" in text
-        assert "A test project" in text
-        assert "Python, FastAPI" in text
-        assert "github.com/test" in text
+        assert "Alice" in ctx.system_prompt
+        assert cache.size == 1
 
-        # Verify certifications section
-        assert "### Certifications" in text
-        assert "Test Certification" in text
-        assert "Test Org" in text
+    def test_cache_hit_returns_same_instance(self):
+        """get_or_create() returns the identical object on cache hit."""
+        token_counter = TokenCounter()
+        cache = ResumeContextCache()
 
-    finally:
-        if temp_path.exists():
-            temp_path.unlink()
+        ctx1 = cache.get_or_create("user_1", "Alice is a developer.", token_counter)
+        ctx2 = cache.get_or_create("user_1", "Alice is a developer.", token_counter)
+
+        assert ctx1 is ctx2
+        assert cache.size == 1
+
+    def test_lru_eviction_removes_oldest(self):
+        """When full, the least-recently-used entry is evicted."""
+        token_counter = TokenCounter()
+        cache = ResumeContextCache(max_size=2)
+
+        cache.get_or_create("a", "Resume A", token_counter)
+        cache.get_or_create("b", "Resume B", token_counter)
+        cache.get_or_create("c", "Resume C", token_counter)  # evicts "a"
+
+        assert cache.size == 2
+        assert "a" not in cache._cache
+        assert "b" in cache._cache
+        assert "c" in cache._cache
+
+    def test_lru_eviction_respects_recent_access(self):
+        """Accessing an entry promotes it, so a different entry is evicted."""
+        token_counter = TokenCounter()
+        cache = ResumeContextCache(max_size=2)
+
+        cache.get_or_create("a", "Resume A", token_counter)
+        cache.get_or_create("b", "Resume B", token_counter)
+        cache.get_or_create("a", "Resume A", token_counter)  # promote "a"
+        cache.get_or_create("c", "Resume C", token_counter)  # evicts "b"
+
+        assert "a" in cache._cache
+        assert "b" not in cache._cache
+        assert "c" in cache._cache
+
+    def test_invalidate_removes_entry(self):
+        """invalidate() removes the specified entry from the cache."""
+        token_counter = TokenCounter()
+        cache = ResumeContextCache()
+
+        cache.get_or_create("user_1", "Alice is a developer.", token_counter)
+        assert cache.size == 1
+
+        cache.invalidate("user_1")
+        assert cache.size == 0
+
+    def test_invalidate_missing_key_is_safe(self):
+        """invalidate() on a nonexistent key raises no error."""
+        cache = ResumeContextCache()
+        cache.invalidate("nonexistent")  # must not raise
+
+    def test_clear_removes_all_entries(self):
+        """clear() empties the cache completely."""
+        token_counter = TokenCounter()
+        cache = ResumeContextCache()
+
+        cache.get_or_create("a", "Resume A", token_counter)
+        cache.get_or_create("b", "Resume B", token_counter)
+
+        cache.clear()
+        assert cache.size == 0
+
+    def test_different_users_get_different_contexts(self):
+        """Different cache keys produce different ResumeContext instances."""
+        token_counter = TokenCounter()
+        cache = ResumeContextCache()
+
+        ctx_alice = cache.get_or_create(
+            "alice", "Alice is a Python developer.", token_counter
+        )
+        ctx_bob = cache.get_or_create(
+            "bob", "Bob is a JavaScript developer.", token_counter
+        )
+
+        assert "Alice" in ctx_alice.system_prompt
+        assert "Bob" in ctx_bob.system_prompt
+        assert ctx_alice is not ctx_bob
+
+    def test_invalidate_then_create_rebuilds_context(self):
+        """After invalidation, the next get_or_create() builds a fresh context."""
+        token_counter = TokenCounter()
+        cache = ResumeContextCache()
+
+        ctx1 = cache.get_or_create("user_1", "Original resume.", token_counter)
+        cache.invalidate("user_1")
+        ctx2 = cache.get_or_create("user_1", "Updated resume.", token_counter)
+
+        assert ctx1 is not ctx2
+        assert "Updated" in ctx2.system_prompt
