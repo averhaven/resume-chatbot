@@ -6,10 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, get_db_session
+from app.core.dependencies import get_current_user, get_db_session, get_resume_cache
 from app.core.logger import get_logger
 from app.db.models import User
 from app.db.repositories.user import UserRepository
+from app.services.resume_loader import ResumeContextCache
 from app.services.text_extractor import extract_text
 
 logger = get_logger(__name__)
@@ -42,6 +43,7 @@ async def upload_resume(
     file: UploadFile,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    resume_cache: Annotated[ResumeContextCache, Depends(get_resume_cache)],
 ) -> ResumeResponse:
     """Upload a resume file. Extracts text and stores it on the user profile.
 
@@ -65,6 +67,7 @@ async def upload_resume(
     await repo.update_resume(current_user.id, file.filename or "resume", text)
     await session.commit()
 
+    resume_cache.invalidate(str(current_user.id))
     logger.info(f"Resume uploaded for user {current_user.id}: {file.filename}")
 
     return ResumeResponse(
@@ -96,6 +99,7 @@ async def get_resume(
 async def delete_resume(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    resume_cache: Annotated[ResumeContextCache, Depends(get_resume_cache)],
 ) -> None:
     """Delete the current user's resume data."""
     repo = UserRepository(session)
@@ -106,6 +110,7 @@ async def delete_resume(
         await session.flush()
         await session.commit()
 
+    resume_cache.invalidate(str(current_user.id))
     logger.info(f"Resume deleted for user {current_user.id}")
 
 

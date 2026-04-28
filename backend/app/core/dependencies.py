@@ -13,10 +13,16 @@ from app.core.auth import decode_access_token
 from app.core.logger import get_logger
 from app.db.models import User
 from app.db.repositories.user import UserRepository
+from app.services.resume_loader import ResumeContextCache
 
 logger = get_logger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+
+def get_resume_cache(request: Request) -> ResumeContextCache:
+    """FastAPI dependency that returns the shared resume context cache."""
+    return request.app.state.resume_cache
 
 
 async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession]:

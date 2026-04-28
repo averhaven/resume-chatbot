@@ -1,6 +1,7 @@
 """Resume loader service for loading and formatting resume data."""
 
 import json
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -49,7 +50,6 @@ class ResumeLoader:
         except Exception as e:
             raise ResumeLoadError(f"Failed to load resume: {e}") from e
 
-        # Convert to text format
         self._resume_text = self._format_resume_as_text(self._resume_data)
 
     def _format_header(self, data: dict[str, Any]) -> list[str]:
@@ -238,34 +238,26 @@ class ResumeLoader:
         """
         lines = []
 
-        # Header
         lines.extend(self._format_header(data))
 
-        # Contact
         if data.get("contact"):
             lines.extend(self._format_contact(data["contact"]))
 
-        # Summary
         if data.get("summary"):
             lines.extend(self._format_summary(data["summary"]))
 
-        # Experience
         if data.get("experience"):
             lines.extend(self._format_experience(data["experience"]))
 
-        # Skills
         if data.get("skills"):
             lines.extend(self._format_skills(data["skills"]))
 
-        # Education
         if data.get("education"):
             lines.extend(self._format_education(data["education"]))
 
-        # Projects
         if data.get("projects"):
             lines.extend(self._format_projects(data["projects"]))
 
-        # Certifications
         if data.get("certifications"):
             lines.extend(self._format_certifications(data["certifications"]))
 
@@ -307,43 +299,19 @@ def create_resume_loader(resume_path: str | Path) -> ResumeLoader:
 
 @dataclass
 class ResumeContext:
-    """Encapsulates resume data, system prompt, and token count.
+    """Encapsulates resume system prompt and token count.
 
-    This class holds all resume-related data needed for chat processing,
-    computed once at startup to avoid redundant work per request.
+    Built once per user (or on cache miss) from stored resume text.
     """
 
     system_prompt: str
     system_prompt_tokens: int
 
     @classmethod
-    def from_file(
-        cls, path: str | Path, token_counter: TokenCounter
-    ) -> "ResumeContext":
-        """Create a ResumeContext from a resume file.
-
-        Args:
-            path: Path to the resume JSON file
-            token_counter: TokenCounter instance for counting tokens
-
-        Returns:
-            ResumeContext with loaded resume, built system prompt, and token count
-
-        Raises:
-            ResumeLoadError: If resume cannot be loaded
-        """
-        loader = create_resume_loader(path)
-        resume_text = loader.get_resume_text()
-        return cls.from_text(resume_text, token_counter)
-
-    @classmethod
     def from_text(
         cls, resume_text: str, token_counter: TokenCounter
     ) -> "ResumeContext":
         """Create a ResumeContext from already-extracted resume text.
-
-        Use this for multi-tenant flows where resume content is stored
-        in the database after extraction from any file format.
 
         Args:
             resume_text: Pre-extracted resume text content
@@ -361,3 +329,53 @@ class ResumeContext:
             system_prompt=system_prompt,
             system_prompt_tokens=system_prompt_tokens,
         )
+
+
+class ResumeContextCache:
+    """LRU in-memory cache for ResumeContext instances, keyed by string.
+
+    Prevents rebuilding the system prompt on every WebSocket connection.
+    Cache is invalidated when a user updates or deletes their resume.
+    """
+
+    def __init__(self, max_size: int = 128):
+        self._cache: OrderedDict[str, ResumeContext] = OrderedDict()
+        self._max_size = max_size
+
+    def get_or_create(
+        self, key: str, resume_text: str, token_counter: TokenCounter
+    ) -> ResumeContext:
+        """Return a cached ResumeContext or build and cache a new one.
+
+        Args:
+            key: Cache key (e.g. str(user_id) or a sentinel for legacy use)
+            resume_text: Resume text used to build the context on a cache miss
+            token_counter: Used to count tokens on a cache miss
+
+        Returns:
+            Cached or newly created ResumeContext
+        """
+        if key in self._cache:
+            self._cache.move_to_end(key)
+            return self._cache[key]
+
+        context = ResumeContext.from_text(resume_text, token_counter)
+        self._cache[key] = context
+
+        if len(self._cache) > self._max_size:
+            evicted, _ = self._cache.popitem(last=False)
+            logger.debug(f"Evicted LRU resume context (key={evicted!r})")
+
+        return context
+
+    def invalidate(self, key: str) -> None:
+        """Remove a cached entry, e.g. after a resume upload or delete."""
+        self._cache.pop(key, None)
+
+    def clear(self) -> None:
+        """Remove all cached entries."""
+        self._cache.clear()
+
+    @property
+    def size(self) -> int:
+        return len(self._cache)
