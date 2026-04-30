@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -154,6 +154,40 @@ class ConversationRepository:
 
         result = await self.session.execute(stmt)
         return result.rowcount > 0  # type: ignore
+
+    async def count_conversations(self, user_id: UUID | None = None) -> int:
+        """Count conversations, optionally filtered by user.
+
+        Args:
+            user_id: Optional user ID filter for tenant isolation
+
+        Returns:
+            Total count of matching conversations
+        """
+        stmt = select(func.count()).select_from(Conversation)
+        if user_id is not None:
+            stmt = stmt.where(Conversation.user_id == user_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
+    async def count_conversations_since(self, user_id: UUID, since: datetime) -> int:
+        """Count conversations created since a given datetime.
+
+        Args:
+            user_id: User ID filter
+            since: Datetime lower bound (inclusive)
+
+        Returns:
+            Count of conversations created since the given datetime
+        """
+        stmt = (
+            select(func.count())
+            .select_from(Conversation)
+            .where(Conversation.user_id == user_id)
+            .where(Conversation.created_at >= since)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
 
     async def delete_conversation(
         self, conversation_id: UUID, user_id: UUID | None = None
