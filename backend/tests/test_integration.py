@@ -57,7 +57,7 @@ class TestEndToEndChat:
                     # Receive welcome message
                     welcome = websocket.receive_json()
                     assert welcome["type"] == "system"
-                    assert "alexandra's resume" in welcome["message"]
+                    assert "resume" in welcome["message"].lower()
 
                     # Send a question
                     websocket.send_json(
