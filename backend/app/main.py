@@ -1,7 +1,6 @@
 from contextlib import asynccontextmanager
-from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import ValidationError
 from sqlalchemy import text
@@ -35,7 +34,6 @@ from app.services.prompts import build_prompt, prune_conversation_history
 from app.services.resume_loader import (
     ResumeContext,
     ResumeContextCache,
-    create_resume_loader,
 )
 from app.services.token_counter import TokenCounter
 
@@ -336,6 +334,147 @@ async def health_check(deep: bool = False):
     return JSONResponse(content=status, status_code=http_status)
 
 
+def _render_landing_html() -> str:
+    """Render the product landing page HTML."""
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Chatbot</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 3rem 2.5rem;
+            max-width: 680px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+        .hero { text-align: center; margin-bottom: 2.5rem; }
+        .hero h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: 0.75rem;
+        }
+        .hero p {
+            font-size: 1.05rem;
+            color: #555;
+            line-height: 1.6;
+        }
+        .steps { margin-bottom: 2rem; }
+        .steps h2 {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #aaa;
+            margin-bottom: 1rem;
+        }
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+        }
+        .step-num {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-weight: 700;
+            font-size: 0.8rem;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .step-text { color: #444; font-size: 0.9rem; }
+        .step-text strong { color: #1a1a2e; }
+        .step-text code {
+            background: #f3f0ff;
+            color: #764ba2;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 0.82rem;
+        }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 0.75rem 1.25rem;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-decoration: none;
+            text-align: center;
+            transition: opacity 0.15s, transform 0.1s;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        .btn:hover { opacity: 0.88; transform: translateY(-1px); }
+        .formats {
+            margin-top: 1.5rem;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+        .disclaimer {
+            margin-top: 1rem;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="hero">
+            <h1>Your Resume, Your Chatbot</h1>
+            <p>Upload your resume and get a shareable AI chatbot link<br>
+               Let recruiters ask questions about you</p>
+        </div>
+
+        <div class="steps">
+            <h2>How it works</h2>
+            <div class="step">
+                <div class="step-num">1</div>
+                <div class="step-text"><strong>Open <a href="/docs" style="color:#764ba2">/docs</a></strong> — everything is interactive there</div>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <div class="step-text"><strong>Register</strong> via <code>POST /auth/register</code>, then click <strong>Authorize</strong> to log in</div>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <div class="step-text"><strong>Upload your resume</strong> via <code>POST /resume/upload</code></div>
+            </div>
+            <div class="step">
+                <div class="step-num">4</div>
+                <div class="step-text"><strong>Share</strong> your live chatbot at <code>/chat/<em>your-username</em></code></div>
+            </div>
+        </div>
+
+        <a href="/chat/alexandra" class="btn">Chat with Alexandra Verhaven &rarr;</a>
+
+        <p class="formats">Accepts PDF &middot; DOCX &middot; TXT &middot; Markdown &middot; JSON &nbsp;&mdash;&nbsp; up to 5 MB</p>
+        <p class="disclaimer"><strong>This is a personal demo.</strong> Please don&rsquo;t upload a real resume &mdash; data is stored unencrypted and may be deleted without notice.</p>
+    </div>
+</body>
+</html>"""
+
+
 def _render_chat_html(
     title: str, heading: str, subheading: str, placeholder: str
 ) -> str:
@@ -619,113 +758,25 @@ def _render_chat_html(
 
 
 @app.get("/", response_class=HTMLResponse)
-async def get_chat_interface():
-    """Serve HTML chat interface for the default (Alexandra's) resume chatbot."""
-    return _render_chat_html(
-        title="Alexandra Verhaven | Resume Chat",
-        heading="Alexandra Verhaven",
-        subheading="Ask me anything about my background, skills, and experience",
-        placeholder="e.g., What technologies has Alexandra worked with?",
-    )
+async def get_landing_page():
+    """Serve the product landing page."""
+    return _render_landing_html()
 
 
 @app.get("/chat/{username}", response_class=HTMLResponse)
-async def get_user_chat_interface(username: str):
+async def get_user_chat_interface(request: Request, username: str):
     """Serve HTML chat interface for a specific user's resume chatbot."""
+    db_manager: DatabaseManager = request.app.state.db_manager
+    async with db_manager.get_session() as session:
+        repo = UserRepository(session)
+        user = await repo.get_by_username(username)
+    display = (user.display_name or username) if user else username
     return _render_chat_html(
-        title=f"{username} | Resume Chat",
-        heading=username,
+        title=f"{display} | Resume Chat",
+        heading=display,
         subheading="Ask me anything about their background, skills, and experience",
-        placeholder=f"e.g., What technologies has {username} worked with?",
+        placeholder=f"e.g., What technologies has {display} worked with?",
     )
-
-
-def _load_legacy_resume_text() -> str:
-    """Read and return the configured default resume file as plain text."""
-    settings = get_settings()
-    resume_path = Path(settings.resume_path)
-    if not resume_path.is_absolute():
-        resume_path = Path(__file__).parent.parent / resume_path
-    return create_resume_loader(resume_path).get_resume_text()
-
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, session_id: str | None = None):
-    """WebSocket endpoint for resume chatbot conversation.
-
-    Handles real-time chat interactions with database persistence:
-    1. Receives user questions (JSON: {"type": "question", "question": "..."})
-    2. Builds prompts with resume context and conversation history
-    3. Calls LLM API to generate responses
-    4. Sends responses back (JSON: {"type": "response", "response": "..."})
-    5. Persists conversation history to PostgreSQL database
-
-    Args:
-        websocket: WebSocket connection
-        session_id: Optional session ID for resuming conversations
-    """
-    await websocket.accept()
-
-    logger.info(f"Client connected (session_id param: {session_id})")
-
-    resume_cache: ResumeContextCache = websocket.app.state.resume_cache
-    token_counter: TokenCounter = websocket.app.state.token_counter
-    resume_context = resume_cache.get_or_create(
-        "__legacy__", _load_legacy_resume_text(), token_counter
-    )
-
-    # Track the actual session_id (may be generated by manager)
-    actual_session_id = session_id
-
-    try:
-        # Use database-backed conversation manager
-        db_manager: DatabaseManager = websocket.app.state.db_manager
-        async with db_manager.get_session() as db_session:
-            conversation_manager = DatabaseConversationManager(db_session, session_id)
-            # Get the actual session_id (generated if not provided)
-            actual_session_id = conversation_manager.session_id
-            # Set session_id in context for logging
-            set_session_id(actual_session_id)
-            logger.info(f"Session established: {actual_session_id}")
-
-            # Send welcome message with session_id for reconnection support
-            welcome = SystemMessage(
-                message="Hi! I'm an AI assistant here to answer questions about Alexandra's resume. Feel free to ask about her experience, skills, or projects.",
-                session_id=actual_session_id,
-            )
-            await websocket.send_json(welcome.model_dump())
-
-            rate_limiter: WebSocketRateLimiter = websocket.app.state.rate_limiter
-
-            async with create_llm_client() as llm_client:
-                await handle_websocket_messages(
-                    websocket,
-                    conversation_manager,
-                    resume_context,
-                    llm_client,
-                    rate_limiter,
-                    actual_session_id,
-                    token_counter,
-                )
-
-    except WebSocketDisconnect:
-        logger.info(f"Client disconnected (session: {actual_session_id})")
-
-    except OperationalError as e:
-        logger.error(
-            f"Database error (session: {actual_session_id}): {e}", exc_info=True
-        )
-
-    except Exception as e:
-        logger.error(
-            f"WebSocket error (session: {actual_session_id}): {e}", exc_info=True
-        )
-
-    finally:
-        # Clean up rate limit tracking for this session
-        if actual_session_id:
-            await websocket.app.state.rate_limiter.reset(actual_session_id)
-        logger.info(f"Connection closed (session: {actual_session_id})")
 
 
 @app.websocket("/chat/{username}")
@@ -800,8 +851,9 @@ async def chat_websocket_endpoint(
             logger.info(f"Session established: {actual_session_id} (user: {username})")
 
             # Send welcome message
+            display = user.display_name or user.username
             welcome = SystemMessage(
-                message=f"Hi! I'm an AI assistant here to answer questions about {user.username}'s resume. Feel free to ask about their experience, skills, or projects.",
+                message=f"Hi! I'm an AI assistant here to answer questions about {display}'s resume. Feel free to ask about their experience, skills, or projects.",
                 session_id=actual_session_id,
             )
             await websocket.send_json(welcome.model_dump())

@@ -38,7 +38,7 @@ class TestConversationPersistence:
         """Test that sent messages are actually saved to the database."""
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
-                with client.websocket_connect("/ws") as websocket:
+                with client.websocket_connect("/chat/alexandra") as websocket:
                     # Receive welcome message
                     welcome = websocket.receive_json()
                     assert welcome["type"] == "system"
@@ -82,7 +82,7 @@ class TestConversationPersistence:
 
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
-                with client.websocket_connect("/ws") as websocket:
+                with client.websocket_connect("/chat/alexandra") as websocket:
                     welcome = websocket.receive_json()
                     assert welcome["type"] == "system"
 
@@ -128,7 +128,7 @@ class TestSessionResumption:
         mock_llm_client.call_llm = AsyncMock(return_value="First response")
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
-                with client.websocket_connect("/ws") as websocket:
+                with client.websocket_connect("/chat/alexandra") as websocket:
                     welcome = websocket.receive_json()
                     assert welcome["type"] == "system"
 
@@ -153,7 +153,7 @@ class TestSessionResumption:
             with TestClient(app) as client:
                 # Connect with the captured session_id
                 with client.websocket_connect(
-                    f"/ws?session_id={captured_session_id}"
+                    f"/chat/alexandra?session_id={captured_session_id}"
                 ) as websocket:
                     welcome = websocket.receive_json()
                     assert welcome["type"] == "system"
@@ -184,7 +184,7 @@ class TestSessionResumption:
             with patch("app.main.create_llm_client", return_value=mock_llm_client):
                 with TestClient(app) as client:
                     with client.websocket_connect(
-                        f"/ws?session_id={session_id}"
+                        f"/chat/alexandra?session_id={session_id}"
                     ) as websocket:
                         websocket.receive_json()  # welcome
                         websocket.send_json(
@@ -222,7 +222,7 @@ class TestConversationAcrossReconnects:
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
                 with client.websocket_connect(
-                    f"/ws?session_id={session_id}"
+                    f"/chat/alexandra?session_id={session_id}"
                 ) as websocket:
                     websocket.receive_json()  # welcome
 
@@ -238,7 +238,7 @@ class TestConversationAcrossReconnects:
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
                 with client.websocket_connect(
-                    f"/ws?session_id={session_id}"
+                    f"/chat/alexandra?session_id={session_id}"
                 ) as websocket:
                     websocket.receive_json()  # welcome
 
@@ -276,7 +276,7 @@ class TestConversationAcrossReconnects:
             with patch("app.main.create_llm_client", return_value=mock_llm_client):
                 with TestClient(app) as client:
                     with client.websocket_connect(
-                        f"/ws?session_id={session_id}"
+                        f"/chat/alexandra?session_id={session_id}"
                     ) as websocket:
                         websocket.receive_json()  # welcome
                         websocket.send_json(
@@ -317,7 +317,7 @@ class TestNewVsExistingSession:
         for _ in range(2):
             with patch("app.main.create_llm_client", return_value=mock_llm_client):
                 with TestClient(app) as client:
-                    with client.websocket_connect("/ws") as websocket:
+                    with client.websocket_connect("/chat/alexandra") as websocket:
                         websocket.receive_json()  # welcome
                         websocket.send_json({"type": "question", "question": "Hello"})
                         websocket.receive_json()
@@ -342,7 +342,7 @@ class TestNewVsExistingSession:
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
                 with client.websocket_connect(
-                    "/ws?session_id=nonexistent-session-xyz"
+                    "/chat/alexandra?session_id=nonexistent-session-xyz"
                 ) as websocket:
                     websocket.receive_json()  # welcome
                     websocket.send_json({"type": "question", "question": "Hello"})

@@ -26,17 +26,17 @@ def mock_llm_client():
 def test_websocket_connection(test_client, mock_llm_client):
     """Test that a client can successfully connect to the WebSocket endpoint"""
     with patch("app.main.create_llm_client", return_value=mock_llm_client):
-        with test_client.websocket_connect("/ws") as websocket:
+        with test_client.websocket_connect("/chat/alexandra") as websocket:
             # Should receive welcome message
             welcome = websocket.receive_json()
             assert welcome["type"] == "system"
-            assert "Alexandra's resume" in welcome["message"]
+            assert "alexandra's resume" in welcome["message"]
 
 
 def test_websocket_basic_chat(test_client, mock_llm_client):
     """Test basic chat functionality via WebSocket"""
     with patch("app.main.create_llm_client", return_value=mock_llm_client):
-        with test_client.websocket_connect("/ws") as websocket:
+        with test_client.websocket_connect("/chat/alexandra") as websocket:
             # Receive welcome message
             welcome = websocket.receive_json()
             assert welcome["type"] == "system"
@@ -58,7 +58,7 @@ def test_websocket_multiple_messages(test_client, mock_llm_client):
     mock_llm_client.call_llm = AsyncMock(side_effect=responses)
 
     with patch("app.main.create_llm_client", return_value=mock_llm_client):
-        with test_client.websocket_connect("/ws") as websocket:
+        with test_client.websocket_connect("/chat/alexandra") as websocket:
             # Receive welcome message
             welcome = websocket.receive_json()
             assert welcome["type"] == "system"
@@ -75,7 +75,7 @@ def test_websocket_multiple_messages(test_client, mock_llm_client):
 def test_websocket_invalid_json_structure(test_client, mock_llm_client):
     """Test that invalid message structure is handled gracefully"""
     with patch("app.main.create_llm_client", return_value=mock_llm_client):
-        with test_client.websocket_connect("/ws") as websocket:
+        with test_client.websocket_connect("/chat/alexandra") as websocket:
             # Receive welcome message
             welcome = websocket.receive_json()
             assert welcome["type"] == "system"
@@ -94,7 +94,7 @@ def test_websocket_invalid_json_structure(test_client, mock_llm_client):
 def test_websocket_disconnect(test_client, mock_llm_client):
     """Test that WebSocket disconnection is handled gracefully"""
     with patch("app.main.create_llm_client", return_value=mock_llm_client):
-        with test_client.websocket_connect("/ws") as websocket:
+        with test_client.websocket_connect("/chat/alexandra") as websocket:
             # Receive welcome message
             welcome = websocket.receive_json()
             assert welcome["type"] == "system"

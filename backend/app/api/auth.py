@@ -27,6 +27,7 @@ class RegisterRequest(BaseModel):
     username: str
     email: str
     password: str
+    display_name: str | None = None
 
     @field_validator("username")
     @classmethod
@@ -48,6 +49,18 @@ class RegisterRequest(BaseModel):
             raise ValueError("Invalid email address")
         return v
 
+    @field_validator("display_name")
+    @classmethod
+    def validate_display_name(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        if len(v) == 0:
+            return None
+        if len(v) > 150:
+            raise ValueError("Display name must be at most 150 characters")
+        return v
+
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
@@ -65,6 +78,7 @@ class UserResponse(BaseModel):
     id: UUID
     username: str
     email: str
+    display_name: str | None = None
 
 
 class AuthResponse(BaseModel):
@@ -112,6 +126,7 @@ async def register(
             username=request.username,
             email=request.email,
             password_hash=password_hash,
+            display_name=request.display_name,
         )
         await session.commit()
     except IntegrityError:
@@ -126,7 +141,12 @@ async def register(
 
     return AuthResponse(
         access_token=token,
-        user=UserResponse(id=user.id, username=user.username, email=user.email),
+        user=UserResponse(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            display_name=user.display_name,
+        ),
     )
 
 
@@ -160,7 +180,12 @@ async def login(
 
     return AuthResponse(
         access_token=token,
-        user=UserResponse(id=user.id, username=user.username, email=user.email),
+        user=UserResponse(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            display_name=user.display_name,
+        ),
     )
 
 
@@ -180,4 +205,47 @@ async def get_me(
         id=current_user.id,
         username=current_user.username,
         email=current_user.email,
+        display_name=current_user.display_name,
+    )
+
+
+class UpdateProfileRequest(BaseModel):
+    display_name: str | None = None
+
+    @field_validator("display_name")
+    @classmethod
+    def validate_display_name(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        if len(v) == 0:
+            return None
+        if len(v) > 150:
+            raise ValueError("Display name must be at most 150 characters")
+        return v
+
+
+@router.patch(
+    "/profile",
+    response_model=UserResponse,
+    summary="Update profile",
+)
+async def update_profile(
+    request: UpdateProfileRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> UserResponse:
+    """Update the current user's profile (display name).
+
+    Requires a valid Bearer token in the Authorization header.
+    """
+    repo = UserRepository(session)
+    await repo.update_display_name(current_user.id, request.display_name)
+    await session.commit()
+    current_user.display_name = request.display_name
+    return UserResponse(
+        id=current_user.id,
+        username=current_user.username,
+        email=current_user.email,
+        display_name=current_user.display_name,
     )
