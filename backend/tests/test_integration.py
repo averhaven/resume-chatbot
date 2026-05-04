@@ -53,11 +53,11 @@ class TestEndToEndChat:
         """Test connecting to WebSocket and sending a question."""
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
-                with client.websocket_connect("/ws") as websocket:
+                with client.websocket_connect("/chat/alexandra") as websocket:
                     # Receive welcome message
                     welcome = websocket.receive_json()
                     assert welcome["type"] == "system"
-                    assert "Alexandra's resume" in welcome["message"]
+                    assert "alexandra's resume" in welcome["message"]
 
                     # Send a question
                     websocket.send_json(
@@ -80,7 +80,7 @@ class TestEndToEndChat:
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
                 # Note: Each WebSocket connection gets its own conversation manager
-                with client.websocket_connect("/ws") as websocket:
+                with client.websocket_connect("/chat/alexandra") as websocket:
                     # Receive welcome message
                     welcome = websocket.receive_json()
                     assert welcome["type"] == "system"
@@ -118,7 +118,7 @@ class TestEndToEndChat:
         """Test that invalid message format returns error."""
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
-                with client.websocket_connect("/ws") as websocket:
+                with client.websocket_connect("/chat/alexandra") as websocket:
                     # Receive welcome message
                     welcome = websocket.receive_json()
                     assert welcome["type"] == "system"
@@ -138,7 +138,7 @@ class TestEndToEndChat:
 
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
-                with client.websocket_connect("/ws") as websocket:
+                with client.websocket_connect("/chat/alexandra") as websocket:
                     # Receive welcome message
                     welcome = websocket.receive_json()
                     assert welcome["type"] == "system"
@@ -166,7 +166,7 @@ class TestEndToEndChat:
 
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
-                with client.websocket_connect("/ws") as websocket:
+                with client.websocket_connect("/chat/alexandra") as websocket:
                     # Receive welcome message
                     welcome = websocket.receive_json()
                     assert welcome["type"] == "system"
@@ -194,7 +194,7 @@ class TestEndToEndChat:
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
                 # Single connection with multiple messages
-                with client.websocket_connect("/ws") as websocket:
+                with client.websocket_connect("/chat/alexandra") as websocket:
                     welcome = websocket.receive_json()
                     assert welcome["type"] == "system"
 
@@ -230,7 +230,7 @@ class TestEndToEndChat:
         with patch("app.main.create_llm_client", return_value=mock_llm_client):
             with TestClient(app) as client:
                 # First connection sends a message
-                with client.websocket_connect("/ws") as ws1:
+                with client.websocket_connect("/chat/alexandra") as ws1:
                     ws1.receive_json()  # welcome message
                     ws1.send_json(
                         {"type": "question", "question": "Question from session 1"}
@@ -244,7 +244,7 @@ class TestEndToEndChat:
                 )
 
                 # Second connection should have clean conversation (no history from first)
-                with client.websocket_connect("/ws") as ws2:
+                with client.websocket_connect("/chat/alexandra") as ws2:
                     ws2.receive_json()  # welcome message
                     ws2.send_json(
                         {"type": "question", "question": "Question from session 2"}

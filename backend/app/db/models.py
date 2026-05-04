@@ -48,6 +48,9 @@ class User(Base):
     resume_filename: Mapped[str | None] = mapped_column(String(500), nullable=True)
     resume_content: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Display name shown in the chat UI (falls back to username if not set)
+    display_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+
     # Chat settings
     chat_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 

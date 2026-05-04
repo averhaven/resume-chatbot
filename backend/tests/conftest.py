@@ -11,8 +11,10 @@ from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 import app.db.models  # noqa: F401 — ensure all ORM models are registered with Base.metadata
+from app.core.auth import hash_password
 from app.core.config import get_settings
 from app.db.base import Base
+from app.db.repositories.user import UserRepository
 
 # Set up test database URL BEFORE importing anything that uses settings
 # Use a file-based SQLite database for tests (shared across connections)
@@ -99,6 +101,32 @@ def setup_test_database(event_loop):
 
     if TEST_DB_PATH.exists():
         TEST_DB_PATH.unlink()
+
+
+@pytest.fixture(autouse=True)
+def seed_alexandra_user(event_loop):
+    """Create the alexandra user before each test (required by /chat/alexandra WS tests)."""
+
+    async def create():
+        if TestDatabase.session_factory is None:
+            return
+        async with TestDatabase.session_factory() as session:
+            repo = UserRepository(session)
+            user = await repo.create_user(
+                username="alexandra",
+                email="alexandra@example.com",
+                password_hash=hash_password("test-password"),
+                display_name="Alexandra Verhaven",
+            )
+            await repo.update_resume(
+                user.id,
+                "resume.json",
+                "Alexandra Verhaven — Software Engineer. Skills: Python, FastAPI, PostgreSQL.",
+            )
+            await session.commit()
+
+    event_loop.run_until_complete(create())
+    yield
 
 
 @pytest_asyncio.fixture(scope="function")

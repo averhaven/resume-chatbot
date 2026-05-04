@@ -27,6 +27,7 @@ class UserRepository:
         username: str,
         email: str,
         password_hash: str,
+        display_name: str | None = None,
     ) -> User:
         """Create a new user.
 
@@ -34,6 +35,7 @@ class UserRepository:
             username: Username (must be unique)
             email: User email address (must be unique)
             password_hash: Hashed password
+            display_name: Optional display name shown in the chat UI
 
         Returns:
             Created User instance
@@ -42,6 +44,7 @@ class UserRepository:
             username=username,
             email=email,
             password_hash=password_hash,
+            display_name=display_name,
         )
 
         self.session.add(user)
@@ -116,6 +119,26 @@ class UserRepository:
             user.resume_content = content
             await self.session.flush()
             logger.info(f"Updated resume for user {user_id}")
+            return True
+        return False
+
+    async def update_display_name(
+        self, user_id: UUID, display_name: str | None
+    ) -> bool:
+        """Update user's display name.
+
+        Args:
+            user_id: User UUID
+            display_name: New display name (None to clear it)
+
+        Returns:
+            True if user was found and updated, False otherwise
+        """
+        user = await self.get_by_id(user_id)
+        if user:
+            user.display_name = display_name
+            await self.session.flush()
+            logger.info(f"Updated display_name for user {user_id}")
             return True
         return False
 

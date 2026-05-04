@@ -31,6 +31,7 @@ class ResumeInfo(BaseModel):
 class DashboardResponse(BaseModel):
     id: UUID
     username: str
+    display_name: str | None
     email: str
     created_at: str
     resume: ResumeInfo
@@ -64,6 +65,7 @@ async def get_dashboard(
     return DashboardResponse(
         id=current_user.id,
         username=current_user.username,
+        display_name=current_user.display_name,
         email=current_user.email,
         created_at=current_user.created_at.isoformat(),
         resume=ResumeInfo(
