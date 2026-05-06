@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A deployed resume chatbot backend using direct LLM API calls with real-time WebSocket communication. The chatbot sends the full resume context along with conversation history to an LLM on each request.
+A multi-tenant resume chatbot backend using direct LLM API calls with real-time WebSocket communication. Users register, upload their resume, and get a shareable public chatbot at `/chat/{username}`. The chatbot sends the full resume context along with conversation history to an LLM on each request.
 
-**Features**: End-to-end chat with resume context, PostgreSQL persistence, session resumption, rate limiting, token management, and input sanitization.
+**Features**: User registration/JWT auth, resume upload (PDF/DOCX/TXT/MD/JSON), per-user chatbot at `/chat/{username}`, PostgreSQL persistence with tenant isolation, session resumption, rate limiting, token management, and input sanitization.
 
 ## Technology Stack
 
@@ -72,10 +72,16 @@ cd backend && uv run alembic history
 ```
 backend/
 ├── app/
-│   ├── main.py              # FastAPI application and WebSocket endpoint
+│   ├── main.py              # FastAPI application and WebSocket endpoints
+│   ├── api/
+│   │   ├── auth.py          # /auth/* endpoints (register, login, profile)
+│   │   ├── resumes.py       # /resume/* endpoints (upload, delete, toggle)
+│   │   └── dashboard.py     # /dashboard/* endpoints (stats, public URL)
 │   ├── core/
+│   │   ├── auth.py          # JWT creation/validation, password hashing
 │   │   ├── config.py        # Environment configuration (Pydantic Settings)
 │   │   ├── context.py       # Session context management (contextvars)
+│   │   ├── dependencies.py  # FastAPI auth dependency (get_current_user)
 │   │   ├── errors.py        # Error codes and user-friendly messages
 │   │   ├── logger.py        # Logging setup
 │   │   ├── rate_limit.py    # WebSocket rate limiting (sliding window)
@@ -84,18 +90,18 @@ backend/
 │   │   ├── conversation.py  # Conversation data models
 │   │   └── websocket.py     # WebSocket message schemas
 │   ├── services/            # Business logic
-│   │   ├── resume_loader.py # Resume loading and text extraction
+│   │   ├── resume_loader.py # Resume context caching (per-user LRU)
+│   │   ├── text_extractor.py # PDF/DOCX/TXT/MD/JSON text extraction
 │   │   ├── llm_client.py    # OpenRouter API client
 │   │   ├── conversation_db.py # Database-backed conversation management
 │   │   ├── token_counter.py # Token counting with tiktoken
 │   │   └── prompts.py       # Prompt templates and context pruning
 │   ├── db/                  # Database models and setup
-│   │   ├── models.py        # SQLAlchemy ORM models
+│   │   ├── models.py        # SQLAlchemy ORM models (User, Conversation, Message)
 │   │   ├── session.py       # Database session management
 │   │   └── repositories/    # Data access layer
-│   └── api/                 # REST API endpoints (future)
 ├── tests/                   # Pytest test suite
-├── data/                    # Resume data (JSON/YAML/Markdown)
+├── data/                    # Resume data (legacy)
 └── pyproject.toml           # uv project configuration
 ```
 
@@ -138,6 +144,14 @@ backend/
 - **SQLAlchemy**: Async ORM with asyncpg driver
 - **Schema**: Conversations table + Messages table (role, content, timestamp)
 - **Alembic**: Database migrations
+
+### Authentication & Multi-Tenancy
+- JWT-based auth via `core/auth.py` (bcrypt passwords, HS256 tokens) and `core/dependencies.py`
+- `get_current_user()` FastAPI dependency for protected endpoints
+- Public chatbot at `/chat/{username}` — no auth required; `chat_enabled` flag controls visibility
+- All conversation repository methods accept `user_id` to scope queries per tenant
+- `DatabaseConversationManager` accepts `user_id` so conversations are always tenant-scoped
+- Resume contexts cached per-user via `ResumeContextCache` (LRU, keyed by user ID)
 
 ### Production Features
 - **Rate Limiting**: Per-session sliding window limiter (WebSocketRateLimiter in `core/rate_limit.py`)
